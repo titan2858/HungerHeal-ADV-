@@ -1,0 +1,153 @@
+# HungerHeal — infrastructure + services
+#
+# Phase 0 brings up ONLY the infrastructure every later phase depends on:
+#   mongo   — primary datastore for auth-service (users) and donation-service (donations)
+#   redis   — agent geo index (GEOADD/GEOSEARCH), load counters, geocode cache, Kafka dedup keys
+#   kafka   — the event bus every service talks over (KRaft mode: no Zookeeper needed)
+#   kafka-ui— browser UI at http://localhost:8090 to SEE topics/messages while learning Kafka
+#
+# Application services are added to this same file as each phase is built,
+# so the whole system always comes up with one `docker compose up -d`.
+
+name: hungerheal
+
+services:
+  # ---------------------------------------------------------------- MongoDB
+  mongo:
+    image: mongo:7
+    container_name: hh-mongo
+    restart: unless-stopped
+    ports:
+      # Host 27018 on purpose: this machine already runs a local mongod on 27017.
+      # Inside the docker network the port is still the normal 27017.
+      - "27018:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-hungerheal}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-hungerheal_dev_pw}
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks: [hungerheal]
+
+  # ------------------------------------------------------------------ Redis
+  redis:
+    image: redis:7-alpine
+    container_name: hh-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    # appendonly = write every change to a log file so a container restart
+    # does not silently wipe agent locations / load counters mid-demo.
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks: [hungerheal]
+
+  # ------------------------------------------------------------------ Kafka
+  # Single-broker KRaft setup: this one container is both the controller
+  # (cluster metadata) and the broker (actual message storage).
+  kafka:
+    image: apache/kafka:3.9.1
+    container_name: hh-kafka
+    restart: unless-stopped
+    ports:
+      # 29092 is the listener for clients running on the HOST (your laptop):
+      # `go run ./...` or `npm run dev` outside docker connect to localhost:29092.
+      # Services running INSIDE docker use kafka:9092 instead.
+      - "29092:29092"
+    environment:
+      # --- KRaft identity ---
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      CLUSTER_ID: hungerheal-local-cluster
+      # --- Listeners ---
+      # Three listeners: internal (docker), controller (KRaft internals), host (your laptop).
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,HOST://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      # --- Single-broker sanity: default is 3 replicas, which a 1-broker cluster cannot satisfy ---
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # Topics are created explicitly by scripts/create-topics.sh, but leaving
+      # auto-create on avoids a dead-end if a consumer starts first while learning.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
+    networks: [hungerheal]
+
+  # --------------------------------------------------------------- Kafka UI
+  # Not part of the architecture — a learning/debugging window into Kafka.
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: hh-kafka-ui
+    restart: unless-stopped
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: hungerheal-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks: [hungerheal]
+
+  # -------------------------------------------------------------- Cassandra
+  # Phase 11, optional. Gated behind a profile so it does not eat ~1.5GB RAM
+  # during normal development. Start it with:
+  #   docker compose --profile analytics up -d
+  cassandra:
+    image: cassandra:5
+    container_name: hh-cassandra
+    profiles: ["analytics"]
+    restart: unless-stopped
+    ports:
+      - "9042:9042"
+    environment:
+      CASSANDRA_CLUSTER_NAME: hungerheal
+      # Single-node dev footprint; the defaults assume a real cluster.
+      MAX_HEAP_SIZE: 512M
+      HEAP_NEWSIZE: 128M
+    volumes:
+      - cassandra-data:/var/lib/cassandra
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'describe keyspaces' >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+    networks: [hungerheal]
+
+volumes:
+  mongo-data:
+  redis-data:
+  kafka-data:
+  cassandra-data:
+
+networks:
+  hungerheal:
+    name: hungerheal
+    driver: bridge

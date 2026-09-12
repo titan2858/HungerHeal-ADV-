@@ -1,0 +1,26 @@
+# deps
+node_modules/
+# env / secrets
+.env
+.env.local
+*.env
+!.env.example
+# builds
+dist/
+build/
+bin/
+*.exe
+# uploads (donation images live on disk in dev)
+uploads/
+# logs
+*.log
+npm-debug.log*
+# go
+vendor/
+# editor / os
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+# test output
+coverage/
