@@ -1,0 +1,6 @@
+# Scripts must keep LF: CRLF breaks the shebang and `bash script.sh` on Linux
+# containers and in Git Bash.
+*.sh   text eol=lf
+Dockerfile text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
