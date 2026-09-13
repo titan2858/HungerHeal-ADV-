@@ -141,6 +141,33 @@ services:
       start_period: 60s
     networks: [hungerheal]
 
+  # ----------------------------------------------------- auth-service (Phase 1)
+  auth-service:
+    build:
+      context: ./services/auth-service
+    container_name: hh-auth
+    restart: unless-stopped
+    ports:
+      - "4001:4001"
+    environment:
+      NODE_ENV: production
+      PORT: 4001
+      SERVICE_NAME: auth-service
+      # Inside the compose network Mongo is mongo:27017, not localhost:27018.
+      MONGO_URI: mongodb://${MONGO_ROOT_USER:-hungerheal}:${MONGO_ROOT_PASSWORD:-hungerheal_dev_pw}@mongo:27017/?authSource=admin
+      MONGO_DB_NAME: hh_auth
+      # Every service that verifies a token must share this exact secret.
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      BCRYPT_ROUNDS: 10
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      # Waiting for healthy, not merely started: mongo accepts TCP connections
+      # before it is ready to serve queries.
+      mongo:
+        condition: service_healthy
+    networks: [hungerheal]
+
 volumes:
   mongo-data:
   redis-data:
