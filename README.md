@@ -27,6 +27,7 @@ bash scripts/verify-infra.sh  # 6 checks, all should pass
 | Service | URL |
 |---|---|
 | auth-service | <http://localhost:4001> |
+| donation-service | <http://localhost:4002> |
 | Kafka UI | <http://localhost:8090> |
 | MongoDB | `localhost:27018` (27017 is taken by the local mongod) |
 | Redis | `localhost:6379` |
@@ -90,10 +91,12 @@ docs/
   PLAN.md              the full specification and non-negotiable decisions
   00-phase0-*.md       Kafka and Redis explained from zero
   01-phase1-*.md       auth-service API, JWT and bcrypt explained
+  02-phase2-*.md       donation-service, Kafka producing and the outbox pattern
 scripts/
   create-topics.sh     create the 8 Kafka topics (idempotent)
   verify-infra.sh      prove Mongo/Redis/Kafka are actually usable
   smoke-auth.sh        drive the running auth-service over HTTP
+  smoke-donation.sh    create donations and read the events back out of Kafka
 services/              one directory per microservice
 frontend/              React (Vite) donor + agent UI
 ```
@@ -106,8 +109,8 @@ frontend/              React (Vite) donor + agent UI
 |---|---|---|
 | 0 | Infra via docker-compose: Mongo, Redis, Kafka | **done** |
 | 1 | `auth-service` — donor/agent signup, login, JWT, bcrypt | **done** |
-| 2 | `donation-service` — CRUD, image upload, category field | next |
-| 3 | `geocoding-service` — OpenCage + Redis cache, Leaflet map | |
+| 2 | `donation-service` — CRUD, image upload, category field, publishes `donation.created` | **done** |
+| 3 | `geocoding-service` — OpenCage + Redis cache, Leaflet map | next |
 | 4 | `agent-location-service` (Go) — live location + capabilities | |
 | 5 | `assignment-engine` (Go) — pure scoring function, unit-tested | |
 | 6 | Kafka flow end-to-end — parallel notify, timeout re-score, idempotency | |

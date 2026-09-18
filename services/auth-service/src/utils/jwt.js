@@ -16,6 +16,18 @@ export function signToken(user) {
       sub: user.id ?? user._id.toString(),
       role: user.role,
       email: user.email,
+      // name and phone ride along because donation-service snapshots the donor's
+      // contact details onto every donation - an agent needs someone to call on
+      // arrival. Carrying them in the token means creating a donation never has
+      // to call back into auth-service, so a donation can still be submitted
+      // while auth-service is down.
+      //
+      // The tradeoff: a user who changes their phone number keeps issuing the
+      // old one until their token expires. Acceptable for contact details that
+      // are snapshotted per donation anyway; it would NOT be acceptable for
+      // anything security-relevant like role.
+      name: user.name,
+      phone: user.phone,
     },
     env.JWT_SECRET,
     { expiresIn: env.JWT_EXPIRES_IN, issuer: 'hungerheal-auth' },

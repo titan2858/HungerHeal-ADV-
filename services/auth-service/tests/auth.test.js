@@ -258,6 +258,35 @@ describe('GET /auth/me', () => {
   });
 });
 
+describe('the JWT contract other services depend on', () => {
+  // donation-service snapshots donorName/donorPhone from the token onto every
+  // donation, so an agent has someone to call. If these claims ever disappear
+  // from the payload, that breaks in another repository directory with no
+  // obvious link back to here - so the contract is asserted at the source.
+  test('the token carries id, role, email, name and phone', async () => {
+    const { default: jwt } = await import('jsonwebtoken');
+    const payload = agentPayload();
+
+    const res = await request(app).post('/auth/signup').send(payload).expect(201);
+    const decoded = jwt.decode(res.body.token);
+
+    assert.ok(decoded.sub);
+    assert.equal(decoded.role, 'AGENT');
+    assert.equal(decoded.email, payload.email.toLowerCase());
+    assert.equal(decoded.name, payload.name);
+    assert.equal(decoded.phone, payload.phone);
+  });
+
+  test('the token never carries the password hash', async () => {
+    const { default: jwt } = await import('jsonwebtoken');
+    const res = await request(app).post('/auth/signup').send(donorPayload()).expect(201);
+
+    const decoded = jwt.decode(res.body.token);
+    assert.equal(decoded.passwordHash, undefined);
+    assert.equal(decoded.password, undefined);
+  });
+});
+
 describe('error shape', () => {
   test('an unknown route returns the standard error body with a traceId', async () => {
     const res = await request(app).get('/auth/nope').expect(404);

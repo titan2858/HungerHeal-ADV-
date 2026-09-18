@@ -168,11 +168,51 @@ services:
         condition: service_healthy
     networks: [hungerheal]
 
+  # ------------------------------------------------- donation-service (Phase 2)
+  donation-service:
+    build:
+      context: ./services/donation-service
+    container_name: hh-donations
+    restart: unless-stopped
+    ports:
+      - "4002:4002"
+    environment:
+      NODE_ENV: production
+      PORT: 4002
+      SERVICE_NAME: donation-service
+      MONGO_URI: mongodb://${MONGO_ROOT_USER:-hungerheal}:${MONGO_ROOT_PASSWORD:-hungerheal_dev_pw}@mongo:27017/?authSource=admin
+      # Its own database - donation-service never reads auth-service's data.
+      MONGO_DB_NAME: hh_donations
+      # Must be identical to auth-service's, or the tokens it issues are rejected here.
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
+      # Inside the compose network the broker is kafka:9092, not localhost:29092.
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_CLIENT_ID: donation-service
+      KAFKA_ENABLED: "true"
+      OUTBOX_SWEEP_INTERVAL_MS: 15000
+      UPLOAD_DIR: /app/uploads
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      # Donation photos outlive the container. Local disk is the pragmatic
+      # choice here; object storage is the honest production answer, since this
+      # volume does not work once the service runs as more than one replica.
+      - donation-uploads:/app/uploads
+    depends_on:
+      mongo:
+        condition: service_healthy
+      # Waiting for kafka is about a clean startup, not a hard requirement:
+      # donations are accepted even with the broker down, and their events are
+      # replayed by the outbox sweeper.
+      kafka:
+        condition: service_healthy
+    networks: [hungerheal]
+
 volumes:
   mongo-data:
   redis-data:
   kafka-data:
   cassandra-data:
+  donation-uploads:
 
 networks:
   hungerheal:
