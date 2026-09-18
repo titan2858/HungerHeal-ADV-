@@ -2,12 +2,12 @@ import { createApp } from './app.js';
 import { connectDb, disconnectDb } from './config/db.js';
 import { env } from './config/env.js';
 import { logger } from './utils/logger.js';
-  
+
 async function main() {
   // Connect before listening: a service that accepts requests it cannot serve
   // just turns a startup problem into a pile of 500s.
   await connectDb();
- 
+
   const server = createApp().listen(env.PORT, () => {
     logger.info({ port: env.PORT, env: env.NODE_ENV }, 'auth-service listening');
   });
