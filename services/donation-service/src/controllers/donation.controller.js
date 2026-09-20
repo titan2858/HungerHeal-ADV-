@@ -1,6 +1,7 @@
 import { Donation } from '../models/Donation.js';
 import { ApiError } from '../utils/ApiError.js';
 import { publishDonationCreated } from '../events/donationEvents.js';
+import { geocodeAddress } from '../clients/geocodingClient.js';
 
 // Turns multer's file objects into the subdocuments stored on the donation.
 const toImageDocs = (files = []) =>
@@ -19,7 +20,28 @@ export async function createDonation(req, res, next) {
       pickupAddress, lat, lng, bestBefore,
     } = req.body;
 
-    const hasCoordinates = lat !== undefined && lng !== undefined;
+    // The map picker supplies coordinates directly, which is both the most
+    // accurate source and free. This fallback covers the cases it cannot: a
+    // typed address, an API client, or a browser that denied geolocation.
+    let coordinates = lat !== undefined && lng !== undefined ? { lat, lng } : null;
+    let geocoded = null;
+
+    if (!coordinates) {
+      geocoded = await geocodeAddress(
+        pickupAddress,
+        { authorization: req.get('authorization'), traceId: req.traceId },
+        req.log,
+      );
+      if (geocoded) {
+        coordinates = { lat: geocoded.lat, lng: geocoded.lng };
+        req.log.info(
+          { confidence: geocoded.confidence, cached: geocoded.cached },
+          'pickup address geocoded',
+        );
+      }
+    }
+
+    const hasCoordinates = coordinates !== null;
 
     const donation = await Donation.create({
       donorId: req.user.id,
@@ -38,7 +60,9 @@ export async function createDonation(req, res, next) {
       pickupAddress,
       // GeoJSON order is [longitude, latitude] - the reverse of how people say
       // it. Getting this backwards silently puts Bengaluru in the Indian Ocean.
-      ...(hasCoordinates ? { location: { type: 'Point', coordinates: [lng, lat] } } : {}),
+      ...(hasCoordinates
+        ? { location: { type: 'Point', coordinates: [coordinates.lng, coordinates.lat] } }
+        : {}),
       images: toImageDocs(req.files),
       bestBefore,
       status: 'PENDING_ASSIGNMENT',
@@ -49,7 +73,13 @@ export async function createDonation(req, res, next) {
     });
 
     req.log.info(
-      { donationId: donation.id, category, hasCoordinates, images: donation.images.length },
+      {
+        donationId: donation.id,
+        category,
+        hasCoordinates,
+        geocoded: geocoded !== null,
+        images: donation.images.length,
+      },
       'donation created',
     );
 
@@ -69,11 +99,17 @@ export async function createDonation(req, res, next) {
       // Honest signalling rather than a silent partial success: the client can
       // show "submitted, finding an agent" versus "submitted, queued".
       assignmentQueued: published,
+      // Surfaced so a donor can see that a vague address resolved roughly, and
+      // correct it on the map before an agent is sent to the wrong end of a
+      // long road.
+      ...(geocoded
+        ? { geocoding: { derivedFromAddress: true, confidence: geocoded.confidence, formatted: geocoded.formatted } }
+        : {}),
       ...(hasCoordinates
         ? {}
         : {
             notice:
-              'no coordinates supplied - this donation cannot be matched to an agent until it is geocoded (Phase 3)',
+              'the pickup address could not be geocoded - this donation cannot be matched to an agent until it has coordinates',
           }),
     });
   } catch (err) {

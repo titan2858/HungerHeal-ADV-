@@ -24,3 +24,7 @@ Thumbs.db
 *.swp
 # test output
 coverage/
+
+# vite
+dist/
+.vite/

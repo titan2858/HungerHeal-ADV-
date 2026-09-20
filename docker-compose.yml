@@ -191,6 +191,10 @@ services:
       KAFKA_ENABLED: "true"
       OUTBOX_SWEEP_INTERVAL_MS: 15000
       UPLOAD_DIR: /app/uploads
+      # Inside the compose network, not localhost.
+      GEOCODING_URL: http://geocoding-service:4003
+      GEOCODING_TIMEOUT_MS: 5000
+      GEOCODING_ENABLED: "true"
       LOG_LEVEL: ${LOG_LEVEL:-info}
     volumes:
       # Donation photos outlive the container. Local disk is the pragmatic
@@ -204,6 +208,39 @@ services:
       # donations are accepted even with the broker down, and their events are
       # replayed by the outbox sweeper.
       kafka:
+        condition: service_healthy
+      # Not a hard dependency in behaviour - a donation is still accepted if
+      # geocoding is unavailable, just without coordinates.
+      geocoding-service:
+        condition: service_started
+    networks: [hungerheal]
+
+  # ------------------------------------------------ geocoding-service (Phase 3)
+  geocoding-service:
+    build:
+      context: ./services/geocoding-service
+    container_name: hh-geocoding
+    restart: unless-stopped
+    ports:
+      - "4003:4003"
+    environment:
+      NODE_ENV: production
+      PORT: 4003
+      SERVICE_NAME: geocoding-service
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
+      REDIS_URL: redis://redis:6379
+      # auto = use OpenCage when a key is present, the offline geocoder when not,
+      # so the stack works end to end before anyone signs up for a key.
+      GEOCODER_PROVIDER: ${GEOCODER_PROVIDER:-auto}
+      OPENCAGE_API_KEY: ${OPENCAGE_API_KEY:-}
+      # 30 days - a street address does not move.
+      CACHE_TTL_SECONDS: 2592000
+      # 1 hour - "not found" can become "found" when the provider updates.
+      NEGATIVE_CACHE_TTL_SECONDS: 3600
+      DAILY_REQUEST_QUOTA: ${DAILY_REQUEST_QUOTA:-2400}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      redis:
         condition: service_healthy
     networks: [hungerheal]
 

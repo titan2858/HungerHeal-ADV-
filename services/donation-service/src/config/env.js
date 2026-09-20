@@ -26,6 +26,15 @@ const schema = z.object({
   // How often to retry publishing events that failed to reach Kafka.
   OUTBOX_SWEEP_INTERVAL_MS: z.coerce.number().int().positive().default(15_000),
 
+  // Phase 3: when a donation arrives without coordinates, ask
+  // geocoding-service to derive them from the address.
+  GEOCODING_URL: z.string().default('http://localhost:4003'),
+  GEOCODING_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
+  GEOCODING_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+
   UPLOAD_DIR: z.string().default('uploads'),
   MAX_IMAGE_BYTES: z.coerce.number().int().positive().default(5 * 1024 * 1024),
   MAX_IMAGES_PER_DONATION: z.coerce.number().int().positive().default(5),

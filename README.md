@@ -22,12 +22,19 @@ cp .env.example .env          # then fill in JWT_SECRET and OPENCAGE_API_KEY
 docker compose up -d          # Mongo, Redis, Kafka, Kafka UI
 bash scripts/create-topics.sh # create the 8 event topics
 bash scripts/verify-infra.sh  # 6 checks, all should pass
+
+cd frontend && npm install && npm run dev   # http://localhost:5173
 ```
+
+No OpenCage API key is required — geocoding falls back to a built-in offline
+geocoder, and the whole stack works end to end without one.
 
 | Service | URL |
 |---|---|
 | auth-service | <http://localhost:4001> |
 | donation-service | <http://localhost:4002> |
+| geocoding-service | <http://localhost:4003> |
+| frontend (Vite dev) | <http://localhost:5173> |
 | Kafka UI | <http://localhost:8090> |
 | MongoDB | `localhost:27018` (27017 is taken by the local mongod) |
 | Redis | `localhost:6379` |
@@ -92,11 +99,13 @@ docs/
   00-phase0-*.md       Kafka and Redis explained from zero
   01-phase1-*.md       auth-service API, JWT and bcrypt explained
   02-phase2-*.md       donation-service, Kafka producing and the outbox pattern
+  03-phase3-*.md       geocoding, Redis caching concepts, the Leaflet map picker
 scripts/
   create-topics.sh     create the 8 Kafka topics (idempotent)
   verify-infra.sh      prove Mongo/Redis/Kafka are actually usable
   smoke-auth.sh        drive the running auth-service over HTTP
   smoke-donation.sh    create donations and read the events back out of Kafka
+  smoke-geocoding.sh   geocoding, cache hits, and donation-service's use of it
 services/              one directory per microservice
 frontend/              React (Vite) donor + agent UI
 ```
@@ -110,8 +119,8 @@ frontend/              React (Vite) donor + agent UI
 | 0 | Infra via docker-compose: Mongo, Redis, Kafka | **done** |
 | 1 | `auth-service` — donor/agent signup, login, JWT, bcrypt | **done** |
 | 2 | `donation-service` — CRUD, image upload, category field, publishes `donation.created` | **done** |
-| 3 | `geocoding-service` — OpenCage + Redis cache, Leaflet map | next |
-| 4 | `agent-location-service` (Go) — live location + capabilities | |
+| 3 | `geocoding-service` — OpenCage + Redis cache, Leaflet map picker | **done** |
+| 4 | `agent-location-service` (Go) — live location + capabilities | next |
 | 5 | `assignment-engine` (Go) — pure scoring function, unit-tested | |
 | 6 | Kafka flow end-to-end — parallel notify, timeout re-score, idempotency | |
 | 7 | `tracking-service` + `notification-service` | |

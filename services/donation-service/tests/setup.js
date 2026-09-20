@@ -11,6 +11,10 @@ process.env.JWT_SECRET = 'test_secret_must_be_at_least_16_chars';
 // scripts/smoke-donation.sh against the running stack.
 process.env.KAFKA_ENABLED = 'false';
 process.env.UPLOAD_DIR = 'uploads-test';
+// The unit suite must not reach out to another service. The geocoding FALLBACK
+// is covered by its own tests below, which stub fetch; the live integration is
+// proven by scripts/smoke-geocoding.sh against the running stack.
+process.env.GEOCODING_ENABLED = 'false';
 process.env.LOG_LEVEL = 'silent';
 
 import jwt from 'jsonwebtoken';

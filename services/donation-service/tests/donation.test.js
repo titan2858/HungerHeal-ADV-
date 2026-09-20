@@ -95,7 +95,7 @@ describe('POST /donations', () => {
     const res = await post().send(noCoords).expect(201);
 
     assert.equal(res.body.donation.location?.coordinates, undefined);
-    assert.match(res.body.notice, /geocoded/);
+    assert.match(res.body.notice, /could not be geocoded/);
   });
 
   test('rejects a latitude sent without a longitude', async () => {
