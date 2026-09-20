@@ -28,3 +28,6 @@ coverage/
 # vite
 dist/
 .vite/
+
+# go
+*.test

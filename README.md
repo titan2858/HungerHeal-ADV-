@@ -34,6 +34,7 @@ geocoder, and the whole stack works end to end without one.
 | auth-service | <http://localhost:4001> |
 | donation-service | <http://localhost:4002> |
 | geocoding-service | <http://localhost:4003> |
+| agent-location-service | <http://localhost:4004> |
 | frontend (Vite dev) | <http://localhost:5173> |
 | Kafka UI | <http://localhost:8090> |
 | MongoDB | `localhost:27018` (27017 is taken by the local mongod) |
@@ -100,12 +101,14 @@ docs/
   01-phase1-*.md       auth-service API, JWT and bcrypt explained
   02-phase2-*.md       donation-service, Kafka producing and the outbox pattern
   03-phase3-*.md       geocoding, Redis caching concepts, the Leaflet map picker
+  04-phase4-*.md       Redis Geo, the heartbeat/reaper pattern, first Go service
 scripts/
   create-topics.sh     create the 8 Kafka topics (idempotent)
   verify-infra.sh      prove Mongo/Redis/Kafka are actually usable
   smoke-auth.sh        drive the running auth-service over HTTP
   smoke-donation.sh    create donations and read the events back out of Kafka
   smoke-geocoding.sh   geocoding, cache hits, and donation-service's use of it
+  smoke-agent-location.sh  agent positions, radius search, raw Redis structures
 services/              one directory per microservice
 frontend/              React (Vite) donor + agent UI
 ```
@@ -120,8 +123,8 @@ frontend/              React (Vite) donor + agent UI
 | 1 | `auth-service` — donor/agent signup, login, JWT, bcrypt | **done** |
 | 2 | `donation-service` — CRUD, image upload, category field, publishes `donation.created` | **done** |
 | 3 | `geocoding-service` — OpenCage + Redis cache, Leaflet map picker | **done** |
-| 4 | `agent-location-service` (Go) — live location + capabilities | next |
-| 5 | `assignment-engine` (Go) — pure scoring function, unit-tested | |
+| 4 | `agent-location-service` (Go) — live location + capabilities in Redis Geo | **done** |
+| 5 | `assignment-engine` (Go) — pure scoring function, unit-tested | next |
 | 6 | Kafka flow end-to-end — parallel notify, timeout re-score, idempotency | |
 | 7 | `tracking-service` + `notification-service` | |
 | 8 | Agent React UI — location sharing, countdown, accept/reject | |

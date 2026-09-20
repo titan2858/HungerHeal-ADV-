@@ -244,6 +244,38 @@ services:
         condition: service_healthy
     networks: [hungerheal]
 
+  # ------------------------------------------- agent-location-service (Phase 4)
+  # First Go service. Handles the highest-frequency write in the system: every
+  # active agent reporting their position every 15-30 seconds.
+  agent-location-service:
+    build:
+      context: ./services/agent-location-service
+    container_name: hh-agent-location
+    restart: unless-stopped
+    ports:
+      - "4004:4004"
+    environment:
+      NODE_ENV: production
+      PORT: 4004
+      SERVICE_NAME: agent-location-service
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
+      AUTH_SERVICE_URL: http://auth-service:4001
+      AUTH_TIMEOUT_SECONDS: 5
+      # A location is trusted for this long without a fresh heartbeat. Redis
+      # cannot expire individual members of a geo set, so presence is tracked
+      # by a separate per-agent key that can.
+      AGENT_TTL_SECONDS: ${AGENT_TTL_SECONDS:-120}
+      REAP_INTERVAL_SECONDS: ${REAP_INTERVAL_SECONDS:-60}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      redis:
+        condition: service_healthy
+      # Capabilities are fetched from auth-service on an agent's first report.
+      auth-service:
+        condition: service_started
+    networks: [hungerheal]
+
 volumes:
   mongo-data:
   redis-data:
