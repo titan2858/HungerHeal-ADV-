@@ -1,0 +1,5 @@
+.env
+.env.example
+Dockerfile
+.dockerignore
+*_test.go

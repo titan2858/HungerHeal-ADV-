@@ -276,6 +276,36 @@ services:
         condition: service_started
     networks: [hungerheal]
 
+  # ------------------------------------------------ assignment-engine (Phase 5)
+  # The matching brain. Consumes donation.created, scores nearby agents on
+  # distance/category/load/rating, and publishes donation.assigned with the top
+  # candidates - the automated replacement for the old manual admin step.
+  assignment-engine:
+    build:
+      context: ./services/assignment-engine
+    container_name: hh-assignment
+    restart: unless-stopped
+    ports:
+      # Health and readiness only; this service has no request API.
+      - "4005:4005"
+    environment:
+      NODE_ENV: production
+      PORT: 4005
+      SERVICE_NAME: assignment-engine
+      # Reads the geo/capability/load keys agent-location-service writes.
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_CONSUMER_GROUP: assignment-engine
+      OFFER_BATCH_SIZE: ${OFFER_BATCH_SIZE:-3}
+      MAX_CANDIDATES: ${MAX_CANDIDATES:-100}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks: [hungerheal]
+
 volumes:
   mongo-data:
   redis-data:
