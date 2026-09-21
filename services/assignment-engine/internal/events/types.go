@@ -12,6 +12,8 @@ const (
 	TopicDonationAssigned   = "donation.assigned"
 	TopicDonationUnassigned = "donation.unassigned"
 	TopicDonationTimeout    = "donation.timeout"
+	TopicDonationAccepted   = "donation.accepted"
+	TopicDonationRejected   = "donation.rejected"
 )
 
 // DonationCreated is the event donation-service publishes. Field names match
@@ -89,10 +91,15 @@ type DonationAssigned struct {
 	CandidatesFound    int     `json:"candidatesFound"`
 	CandidatesEligible int     `json:"candidatesEligible"`
 
-	// Set by urgency, not by score. tracking-service starts a timer of this
-	// length in Phase 7.
+	// Set by urgency, not by score. The engine arms a deadline of this length
+	// when it publishes the offer.
 	ResponseTimeoutSeconds int    `json:"responseTimeoutSeconds"`
 	Urgency                string `json:"urgency"`
+
+	// Which offer round this is. 1 is the first batch; it increments each time
+	// a timeout forces a re-score, so a consumer can tell a fresh offer from
+	// the fourth attempt to place a donation nobody wants.
+	Round int `json:"round"`
 }
 
 // UnassignedReason explains why no offer could be made. A machine-readable code
@@ -136,5 +143,84 @@ type DonationUnassigned struct {
 
 	SearchedRadiusKm float64 `json:"searchedRadiusKm"`
 	CandidatesFound  int     `json:"candidatesFound"`
-	Retryable        bool    `json:"retryable"`
+	// How many offer rounds were attempted before giving up.
+	Round     int  `json:"round"`
+	Retryable bool `json:"retryable"`
+}
+
+// DonationTimeout says an offer batch expired without anyone accepting.
+//
+// The engine both publishes and consumes this. That looks odd at first, but it
+// is the right shape: going through the log rather than calling a function
+// directly means the re-score is durable (it survives a restart mid-timeout),
+// idempotent by the same dedup path as every other event, and visible in Kafka
+// UI alongside the rest of the donation's history.
+type DonationTimeout struct {
+	EventID      string    `json:"eventId"`
+	EventType    string    `json:"eventType"`
+	EventVersion int       `json:"eventVersion"`
+	OccurredAt   time.Time `json:"occurredAt"`
+	TraceID      string    `json:"traceId"`
+
+	DonationID string `json:"donationId"`
+	DonorID    string `json:"donorId"`
+	Category   string `json:"category"`
+
+	// Which round of offers expired, and who ignored it.
+	Round     int      `json:"round"`
+	OfferedTo []string `json:"offeredTo"`
+	// The radius that produced the expired batch. The next round starts from
+	// here rather than beginning again at 5km.
+	RadiusKm float64 `json:"radiusKm"`
+}
+
+// DonationAccepted is published when an agent wins the claim race.
+//
+// tracking-service consumes it in Phase 7 to move the donation to ACCEPTED, and
+// notification-service to tell the donor who is coming.
+type DonationAccepted struct {
+	EventID      string    `json:"eventId"`
+	EventType    string    `json:"eventType"`
+	EventVersion int       `json:"eventVersion"`
+	OccurredAt   time.Time `json:"occurredAt"`
+	TraceID      string    `json:"traceId"`
+
+	DonationID string `json:"donationId"`
+	DonorID    string `json:"donorId"`
+	Category   string `json:"category"`
+
+	AgentID    string `json:"agentId"`
+	AgentName  string `json:"agentName"`
+	AgentPhone string `json:"agentPhone"`
+
+	// The agent's load AFTER accepting, so a consumer does not have to read
+	// Redis to know it.
+	AgentLoad int64 `json:"agentLoad"`
+
+	// How long it took from the offer going out to someone saying yes. The
+	// headline number for Phase 11's analytics.
+	ResponseSeconds float64 `json:"responseSeconds"`
+	Round           int     `json:"round"`
+}
+
+// DonationRejected is published when an offered agent declines.
+//
+// A rejection is NOT a failure - it is useful information. It removes that
+// agent from the exclusion set for this donation and, once everyone in the
+// batch has answered, lets the engine re-score immediately instead of waiting
+// out a deadline nobody is going to meet.
+type DonationRejected struct {
+	EventID      string    `json:"eventId"`
+	EventType    string    `json:"eventType"`
+	EventVersion int       `json:"eventVersion"`
+	OccurredAt   time.Time `json:"occurredAt"`
+	TraceID      string    `json:"traceId"`
+
+	DonationID string `json:"donationId"`
+	DonorID    string `json:"donorId"`
+	AgentID    string `json:"agentId"`
+	Reason     string `json:"reason"`
+
+	// Whether anyone in the current batch has still not answered.
+	RemainingInBatch int `json:"remainingInBatch"`
 }

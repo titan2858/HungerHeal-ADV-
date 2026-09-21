@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"testing"
+	"time"
 
 	"hungerheal/assignment-engine/internal/domain"
 	"hungerheal/assignment-engine/internal/events"
@@ -58,12 +59,19 @@ func (f *fakePublisher) last() publishedEvent {
 }
 
 func newEngine(c CandidateSource, p Publisher) *Engine {
+	return newEngineWithStore(c, p, newFakeOfferStore())
+}
+
+func newEngineWithStore(c CandidateSource, p Publisher, store OfferStore) *Engine {
 	return &Engine{
 		Candidates:     c,
 		Publisher:      p,
+		Offers:         store,
 		Logger:         slog.New(slog.NewTextHandler(io.Discard, nil)),
 		OfferBatchSize: 3,
 		MaxCandidates:  100,
+		MaxRounds:      4,
+		StateTTL:       time.Hour,
 	}
 }
 

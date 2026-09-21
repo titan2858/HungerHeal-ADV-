@@ -31,3 +31,11 @@ dist/
 
 # go
 *.test
+
+# smoke-test scratch files
+.lc-*
+.asg-*
+.geo-*
+.loc-*
+.smoke-*
+.lifecycle-run.log

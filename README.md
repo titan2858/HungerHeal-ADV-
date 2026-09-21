@@ -35,7 +35,7 @@ geocoder, and the whole stack works end to end without one.
 | donation-service | <http://localhost:4002> |
 | geocoding-service | <http://localhost:4003> |
 | agent-location-service | <http://localhost:4004> |
-| assignment-engine (health only) | <http://localhost:4005> |
+| assignment-engine (offers API) | <http://localhost:4005> |
 | frontend (Vite dev) | <http://localhost:5173> |
 | Kafka UI | <http://localhost:8090> |
 | MongoDB | `localhost:27018` (27017 is taken by the local mongod) |
@@ -104,6 +104,7 @@ docs/
   03-phase3-*.md       geocoding, Redis caching concepts, the Leaflet map picker
   04-phase4-*.md       Redis Geo, the heartbeat/reaper pattern, first Go service
   05-phase5-*.md       the scoring algorithm, the compatibility matrix, Kafka consuming
+  06-phase6-*.md       idempotency, the claim race, timeouts and re-scoring
 scripts/
   create-topics.sh     create the 8 Kafka topics (idempotent)
   verify-infra.sh      prove Mongo/Redis/Kafka are actually usable
@@ -112,6 +113,7 @@ scripts/
   smoke-geocoding.sh   geocoding, cache hits, and donation-service's use of it
   smoke-agent-location.sh  agent positions, radius search, raw Redis structures
   smoke-assignment.sh  the full chain: donation -> scoring -> donation.assigned
+  smoke-lifecycle.sh   accept races, timeouts and re-offers (waits out a real 90s window)
 services/              one directory per microservice
 frontend/              React (Vite) donor + agent UI
 ```
@@ -128,8 +130,8 @@ frontend/              React (Vite) donor + agent UI
 | 3 | `geocoding-service` — OpenCage + Redis cache, Leaflet map picker | **done** |
 | 4 | `agent-location-service` (Go) — live location + capabilities in Redis Geo | **done** |
 | 5 | `assignment-engine` (Go) — multi-parameter scoring, auto-assignment | **done** |
-| 6 | Kafka flow end-to-end — timeout re-score, idempotency, accept race | next |
-| 7 | `tracking-service` + `notification-service` | |
+| 6 | Offer lifecycle — idempotency, claim race, timeout re-score | **done** |
+| 7 | `tracking-service` + `notification-service` | next |
 | 8 | Agent React UI — location sharing, countdown, accept/reject | |
 | 9 | Donor React UI — dashboards, history, stats | |
 | 10 | Read-only monitoring view with score breakdowns *(optional)* | |

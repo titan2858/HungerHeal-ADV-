@@ -296,8 +296,16 @@ services:
       REDIS_URL: redis://redis:6379
       KAFKA_BROKERS: kafka:9092
       KAFKA_CONSUMER_GROUP: assignment-engine
+      # Agents answer offers over HTTP, so this service verifies tokens too.
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
       OFFER_BATCH_SIZE: ${OFFER_BATCH_SIZE:-3}
       MAX_CANDIDATES: ${MAX_CANDIDATES:-100}
+      # How many times one donation is re-offered before the donor is told
+      # nobody took it.
+      MAX_OFFER_ROUNDS: ${MAX_OFFER_ROUNDS:-4}
+      # How often expired offers are swept. Well under the 90s shortest
+      # timeout, so an expiry is acted on promptly.
+      WATCH_INTERVAL_SECONDS: ${WATCH_INTERVAL_SECONDS:-5}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     depends_on:
       redis:

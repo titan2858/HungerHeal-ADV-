@@ -53,6 +53,10 @@ func NewFinder(redisURL string) (*Finder, error) {
 func (f *Finder) Ping(ctx context.Context) error { return f.rdb.Ping(ctx).Err() }
 func (f *Finder) Close() error                   { return f.rdb.Close() }
 
+// Client exposes the underlying connection so the offer store can share it.
+// One connection pool for both, rather than two pools to the same server.
+func (f *Finder) Client() *redis.Client { return f.rdb }
+
 // FindWithin returns every live agent within radiusKm of the point.
 //
 // It applies only the filters that are cheap and unambiguous here - online,
