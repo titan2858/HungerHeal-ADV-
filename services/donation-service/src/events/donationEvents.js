@@ -26,6 +26,10 @@ export function buildDonationCreatedEvent(donation) {
     // event rather than fetched afterwards. If the engine had to call back into
     // donation-service to enrich each event, the two services would be coupled
     // again and a donation-service outage would stall matching entirely.
+    // What the donation IS, not just where it is. tracking-service shows this
+    // on the donor's dashboard, and without it every row there would need a
+    // second call back into this service.
+    title: donation.title,
     category: donation.category,
     quantity: donation.quantity,
     bestBefore: donation.bestBefore,

@@ -38,6 +38,20 @@ const donationStatusSchema = new mongoose.Schema(
     donorId: { type: String, required: true, index: true },
     category: { type: String, default: null },
 
+    // Copied from donation.created so the donor's dashboard can show what a
+    // donation actually WAS without a second call to donation-service for
+    // every row. The event already carries all of it.
+    title: { type: String, default: null },
+    pickupAddress: { type: String, default: null },
+    quantity: {
+      amount: { type: Number, default: null },
+      unit: { type: String, default: null },
+    },
+    // Lets the dashboard show how much time is left before the food should no
+    // longer be distributed - the difference between "waiting" and "waiting,
+    // and it expires in 40 minutes".
+    bestBefore: { type: Date, default: null },
+
     status: {
       type: String,
       enum: Object.values(STATUS),

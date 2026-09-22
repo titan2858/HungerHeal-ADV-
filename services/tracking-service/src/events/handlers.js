@@ -93,12 +93,28 @@ async function recordEvent(event, { eventType, summary, patch = {}, log }) {
 
 export function buildHandlers() {
   return {
-    'donation.created': (event, { log }) =>
-      recordEvent(event, {
+    'donation.created': async (event, { log }) => {
+      const record = await recordEvent(event, {
         eventType: 'donation.created',
         summary: `Donation received: ${event.category ?? 'food'} at ${event.pickup?.address ?? 'an address'}`,
         log,
-      }),
+      });
+
+      // Descriptive fields, set outside the state machine because they are
+      // facts about the donation rather than about its status. Written on
+      // every pass rather than only when missing, so a corrected donation
+      // event updates them.
+      if (record) {
+        record.title = event.title ?? record.title;
+        record.pickupAddress = event.pickup?.address ?? record.pickupAddress;
+        if (event.quantity?.amount != null) {
+          record.quantity = { amount: event.quantity.amount, unit: event.quantity.unit };
+        }
+        if (event.bestBefore) record.bestBefore = new Date(event.bestBefore);
+        await record.save();
+      }
+      return record;
+    },
 
     'donation.assigned': async (event, { log }) => {
       const names = (event.offers ?? []).map((o) => o.agentName).filter(Boolean);

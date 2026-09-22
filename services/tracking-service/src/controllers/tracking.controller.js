@@ -137,17 +137,68 @@ export async function summary(req, res, next) {
         ? { assignedAgentId: req.user.id }
         : { donorId: req.user.id };
 
-    const rows = await DonationStatus.aggregate([
-      { $match: match },
-      { $group: { _id: '$status', count: { $sum: 1 } } },
+    const [rows, delivered, timings] = await Promise.all([
+      DonationStatus.aggregate([
+        { $match: match },
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]),
+
+      // What was actually collected, totalled per unit.
+      //
+      // Summing across units would be meaningless - 40 servings plus 3 kg is
+      // not 43 of anything - so they are kept separate and the UI shows each.
+      // Only COLLECTED counts: food still sitting in a kitchen has not fed
+      // anyone, and a dashboard that counts it would be flattering rather than
+      // true.
+      DonationStatus.aggregate([
+        { $match: { ...match, status: STATUS.COLLECTED, 'quantity.amount': { $ne: null } } },
+        { $group: { _id: '$quantity.unit', amount: { $sum: '$quantity.amount' }, donations: { $sum: 1 } } },
+        { $sort: { amount: -1 } },
+      ]),
+
+      // How the matching is actually performing, from the donor's side.
+      DonationStatus.aggregate([
+        { $match: { ...match, acceptedAt: { $ne: null }, firstOfferedAt: { $ne: null } } },
+        {
+          $project: {
+            secondsToAccept: {
+              $divide: [{ $subtract: ['$acceptedAt', '$firstOfferedAt'] }, 1000],
+            },
+            offerRounds: 1,
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            avgSecondsToAccept: { $avg: '$secondsToAccept' },
+            avgRounds: { $avg: '$offerRounds' },
+            matched: { $sum: 1 },
+          },
+        },
+      ]),
     ]);
 
     const counts = Object.fromEntries(Object.values(STATUS).map((s) => [s, 0]));
     for (const row of rows) counts[row._id] = row.count;
 
+    const t = timings[0];
+
     res.json({
       counts,
       total: rows.reduce((sum, r) => sum + r.count, 0),
+      // The figure a donor actually cares about.
+      delivered: delivered.map((d) => ({
+        unit: d._id,
+        amount: Math.round(d.amount * 100) / 100,
+        donations: d.donations,
+      })),
+      matching: t
+        ? {
+            matched: t.matched,
+            avgSecondsToAccept: Math.round(t.avgSecondsToAccept),
+            avgOfferRounds: Math.round(t.avgRounds * 10) / 10,
+          }
+        : null,
     });
   } catch (err) {
     next(err);
