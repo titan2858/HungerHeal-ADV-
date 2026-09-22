@@ -248,6 +248,26 @@ a 90-second window** — that wait *is* the test. It replays a real event to pro
 dedup, fires two simultaneous accepts through HTTP to prove the lock, and checks
 that round 2 goes to different agents than round 1.
 
+### A third finding: the test that proved nothing
+
+The idempotency check originally passed **vacuously**. The line that replayed
+the event had a literal `
+` where a line continuation belonged, so bash passed
+`n` as an argument, the producer failed, and its output was being discarded with
+`>/dev/null 2>&1`. Nothing was ever republished — so of course exactly one
+`donation.assigned` existed, and the assertion "the redelivered event was
+skipped" was reporting on a redelivery that never happened.
+
+The script now captures the producer's exit status and **asserts the replay
+itself succeeded** before drawing any conclusion from what followed. A test
+whose setup silently fails is worse than no test: it reports success for
+behaviour it never exercised.
+
+Two smaller things in the same script: an `EXIT` trap also fires when a
+command-substitution subshell exits, and this script calls its helpers as
+`$(...)` throughout — so the trap was deleting its own temp files mid-run.
+Cleanup is now explicit at the end.
+
 ### What the first smoke run taught
 
 Two failures, and they were different in kind:

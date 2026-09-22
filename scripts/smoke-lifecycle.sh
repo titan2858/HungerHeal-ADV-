@@ -23,7 +23,10 @@ bad() { echo "  [FAIL] $1"; fail=$((fail+1)); }
 
 BODY="./.lc-body.$$"
 EVT="./.lc-evt.$$"
-trap 'rm -f "$BODY" "$EVT"' EXIT
+# NO EXIT TRAP. An EXIT trap also fires when a command-substitution subshell
+# exits, and this script calls its helpers as $(...) throughout - so a trap here
+# deletes these files mid-run and every later read finds nothing. Cleanup is
+# explicit at the end instead.
 body() { cat "$BODY"; }
 rcli() { docker exec hh-redis redis-cli "$@" 2>/dev/null | tr -d '\r'; }
 jq_py() { python -c "import sys,json;d=json.load(sys.stdin);print($1)" < "$EVT" 2>/dev/null; }
@@ -117,8 +120,18 @@ if [ -n "$ORIGINAL" ]; then
   # Republish the identical body. A console producer does not carry the
   # original Kafka headers - which is precisely why the engine deduplicates
   # on the eventId in the BODY rather than on the x-event-id header.
-  printf '%s
-' "$ORIGINAL" | docker exec -i hh-kafka /opt/kafka/bin/kafka-console-producer.sh \n    --bootstrap-server localhost:9092 --topic donation.created >/dev/null 2>&1
+  REPLAY_OUT=$(printf '%s\n' "$ORIGINAL" | docker exec -i hh-kafka \
+    /opt/kafka/bin/kafka-console-producer.sh \
+    --bootstrap-server localhost:9092 --topic donation.created 2>&1)
+  REPLAY_RC=$?
+  # Assert the replay actually happened. Suppressing the producer output once
+  # hid a broken command here, and the idempotency check below then passed
+  # vacuously: it saw one assignment because nothing had been republished.
+  if [ "$REPLAY_RC" = "0" ]; then
+    ok "the event was genuinely republished to the topic"
+  else
+    bad "the replay itself failed, so the next check proves nothing: $REPLAY_OUT"
+  fi
 
   sleep 6
   ASSIGN_COUNT=$(read_events "donation.assigned" "$D1" 15000 | wc -l | tr -d ' ')
@@ -310,6 +323,7 @@ T_TRACE=$(jq_py "d['traceId']")
 
 echo
 echo "Cleaning up..."
+rm -f "$BODY" "$EVT" ./.lc-a*."$$" ./.lc-c*."$$"
 for id in "${AGENT_IDS[@]}"; do
   [ -n "$id" ] || continue
   rcli ZREM agents:live "$id" >/dev/null
