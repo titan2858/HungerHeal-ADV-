@@ -1,55 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import Login from './components/Login';
 import DonationForm from './components/DonationForm';
+import AgentDashboard from './components/AgentDashboard';
 import { api, auth } from './api/client';
 import './App.css';
 
-// A working harness for Phases 1-3, not the finished product. The donor and
-// agent interfaces proper arrive in Phases 8 and 9; what matters here is that
-// the map picker and the geocoding cache can be used and seen working.
 export default function App() {
   const [user, setUser] = useState(auth.user);
-  const [donations, setDonations] = useState([]);
-  const [geoStats, setGeoStats] = useState(null);
-  const [error, setError] = useState(null);
-
-  const refresh = useCallback(async () => {
-    if (!auth.token) return;
-    try {
-      const [list, stats] = await Promise.all([
-        api.listDonations(),
-        api.geoStats().catch(() => null),
-      ]);
-      setDonations(list.donations);
-      setGeoStats(stats);
-    } catch (err) {
-      // An expired or invalid token should log the user out rather than leave
-      // the page stuck showing errors it cannot recover from.
-      if (err.status === 401) {
-        auth.clear();
-        setUser(null);
-      } else {
-        setError(err.message);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    if (user) refresh();
-  }, [user, refresh]);
-
-  function logout() {
-    auth.clear();
-    setUser(null);
-    setDonations([]);
-  }
 
   if (!user) {
     return (
       <div className="shell">
         <header>
-          <h1>HungerHeal</h1>
-          <p className="tagline">Surplus food, matched to a collection agent automatically.</p>
+          <div>
+            <h1>HungerHeal</h1>
+            <p className="tagline">Surplus food, matched to a collection agent automatically.</p>
+          </div>
         </header>
         <Login onAuthenticated={setUser} />
       </div>
@@ -65,83 +31,120 @@ export default function App() {
             {user.name} · {user.role.toLowerCase()}
           </p>
         </div>
-        <button className="secondary" onClick={logout}>
+        <button
+          className="secondary"
+          onClick={() => {
+            auth.clear();
+            setUser(null);
+          }}
+        >
           Log out
         </button>
       </header>
 
-      {error && <pre className="error">{error}</pre>}
+      {user.role === 'AGENT' ? <AgentDashboard user={user} /> : <DonorView />}
+    </div>
+  );
+}
 
-      {user.role === 'DONOR' && <DonationForm onCreated={refresh} />}
+function DonorView() {
+  const [tracking, setTracking] = useState([]);
+  const [error, setError] = useState(null);
+
+  // Read from tracking-service, not donation-service.
+  //
+  // donation-service sets PENDING_ASSIGNMENT once at creation and never hears
+  // about the rest, so its status field goes stale the moment an agent is
+  // offered the donation. tracking-service is the single owner of the status
+  // and the only place that knows the current answer.
+  const refresh = useCallback(async () => {
+    if (!auth.token) return;
+    try {
+      const res = await api.listTracking('?limit=20');
+      setTracking(res.tracking ?? []);
+      setError(null);
+    } catch (err) {
+      if (err.status === 401) {
+        auth.clear();
+        window.location.reload();
+      } else {
+        setError(err.message);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+    // A donation can go from offered to accepted within seconds, so the donor's
+    // view refreshes on its own rather than needing a reload.
+    const timer = setInterval(refresh, 10_000);
+    return () => clearInterval(timer);
+  }, [refresh]);
+
+  return (
+    <>
+      <DonationForm onCreated={() => setTimeout(refresh, 2000)} />
+
+      {error && <pre className="error">{error}</pre>}
 
       <div className="card">
         <div className="card-head">
-          <h2>{user.role === 'DONOR' ? 'Your donations' : 'Available donations'}</h2>
+          <h2>Your donations</h2>
           <button className="secondary" onClick={refresh}>
             Refresh
           </button>
         </div>
 
-        {donations.length === 0 ? (
-          <p className="hint">Nothing here yet.</p>
+        {tracking.length === 0 ? (
+          <p className="hint">Nothing yet. Post a donation above.</p>
         ) : (
           <ul className="donations">
-            {donations.map((d) => (
-              <li key={d.id}>
+            {tracking.map((t) => (
+              <li key={t.id}>
                 <div className="donation-head">
-                  <strong>{d.title}</strong>
-                  <span className={`status-pill ${d.status.toLowerCase()}`}>
-                    {d.status.replace(/_/g, ' ').toLowerCase()}
+                  <strong>{t.category?.replace(/_/g, ' ').toLowerCase() ?? 'donation'}</strong>
+                  <span className={`status-pill ${t.status.toLowerCase()}`}>
+                    {t.status.replace(/_/g, ' ').toLowerCase()}
                   </span>
                 </div>
-                <p className="muted">
-                  {d.category.replace(/_/g, ' ').toLowerCase()} · {d.quantity.amount}{' '}
-                  {d.quantity.unit.toLowerCase()} · best before{' '}
-                  {new Date(d.bestBefore).toLocaleString()}
-                </p>
-                <p className="muted">{d.pickupAddress}</p>
-                {/* A donation with no coordinates cannot be matched to an
-                    agent, so it is called out rather than shown as normal. */}
-                {!d.location && <p className="warn">No coordinates — cannot be matched yet.</p>}
-                {d.images?.length > 0 && (
-                  <div className="thumbs">
-                    {d.images.map((img) => (
-                      <img key={img.filename} src={img.url} alt={d.title} />
-                    ))}
-                  </div>
+
+                {/* The donor gets a sentence, not an enum. */}
+                <p>{t.message}</p>
+
+                {t.assignedAgentName && (
+                  <p className="muted">
+                    {t.assignedAgentName}
+                    {t.assignedAgentPhone && ` · ${t.assignedAgentPhone}`}
+                  </p>
+                )}
+
+                {t.offerRounds > 1 && (
+                  // Worth surfacing: a donation on its third round is a very
+                  // different situation from one just posted, and the donor
+                  // can see it is still being worked rather than forgotten.
+                  <p className="muted">Offer round {t.offerRounds}</p>
+                )}
+
+                {t.timeline?.length > 0 && (
+                  <details>
+                    <summary className="muted">History</summary>
+                    <ul className="timeline">
+                      {t.timeline.map((entry, i) => (
+                        <li key={i}>
+                          <span className="muted">
+                            {new Date(entry.at).toLocaleTimeString()}
+                          </span>{' '}
+                          {entry.summary}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
                 )}
               </li>
             ))}
           </ul>
         )}
       </div>
-
-      {/* Makes the Redis cache visible. The hit rate is the entire
-          justification for geocoding-service existing as its own service. */}
-      {geoStats?.cache && (
-        <div className="card stats">
-          <h2>Geocoding cache</h2>
-          <div className="stat-grid">
-            <div>
-              <span className="stat-value">{geoStats.cache.hitRate ?? '—'}%</span>
-              <span className="stat-label">hit rate</span>
-            </div>
-            <div>
-              <span className="stat-value">{geoStats.cache.hits}</span>
-              <span className="stat-label">served from Redis</span>
-            </div>
-            <div>
-              <span className="stat-value">{geoStats.cache.providerCalls}</span>
-              <span className="stat-label">provider calls</span>
-            </div>
-            <div>
-              <span className="stat-value">{geoStats.cache.quota?.remaining ?? '—'}</span>
-              <span className="stat-label">daily quota left</span>
-            </div>
-          </div>
-          <p className="hint">Provider: {geoStats.provider}</p>
-        </div>
-      )}
-    </div>
+    </>
   );
 }

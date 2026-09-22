@@ -66,4 +66,35 @@ export const api = {
   geocode: (address) => request(`/api/geo/geocode?address=${encodeURIComponent(address)}`),
   reverse: (lat, lng) => request(`/api/geo/reverse?lat=${lat}&lng=${lng}`),
   geoStats: () => request('/api/geo/stats'),
+
+  // ---------------------------------------------------------------- agent
+  // Reported every REPORT_INTERVAL_MS while an agent is on shift. An agent who
+  // stops reporting drops out of matching within AGENT_TTL_SECONDS (120s), so
+  // this is not optional housekeeping - it is what keeps them visible.
+  reportLocation: (lat, lng) =>
+    request('/api/location/agents/location', { method: 'POST', body: { lat, lng } }),
+  setAvailability: (available) =>
+    request('/api/location/agents/availability', { method: 'POST', body: { available } }),
+  goOffline: () => request('/api/location/agents/offline', { method: 'POST' }),
+  agentState: () => request('/api/location/agents/me'),
+
+  // --------------------------------------------------------------- offers
+  offer: (donationId) => request(`/api/engine/offers/${donationId}`),
+  acceptOffer: (donationId) =>
+    request(`/api/engine/offers/${donationId}/accept`, { method: 'POST' }),
+  rejectOffer: (donationId, reason) =>
+    request(`/api/engine/offers/${donationId}/reject`, { method: 'POST', body: { reason } }),
+
+  // ------------------------------------------------------------- tracking
+  tracking: (donationId) => request(`/api/tracking/${donationId}`),
+  listTracking: (params = '') => request(`/api/tracking${params}`),
+  markCollected: (donationId) =>
+    request(`/api/tracking/${donationId}/collected`, { method: 'POST' }),
+  trackingSummary: () => request('/api/tracking/stats/summary'),
+
+  // -------------------------------------------------------- notifications
+  notifications: (params = '') => request(`/api/notify${params}`),
+  unreadCount: () => request('/api/notify/unread-count'),
+  markNotificationRead: (id) => request(`/api/notify/${id}/read`, { method: 'PATCH' }),
+  markAllRead: () => request('/api/notify/read-all', { method: 'POST' }),
 };

@@ -238,3 +238,81 @@ label.check input { width: auto; margin: 0; }
   .row { flex-direction: column; gap: 0; }
   .picker-search { flex-wrap: wrap; }
 }
+
+/* ------------------------------------------------------------ agent UI */
+
+.shift-row { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+
+.dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--muted); display: inline-block;
+}
+.dot.live {
+  background: var(--accent);
+  /* A quiet pulse: an agent should be able to tell at a glance that their
+     location is actually going out, without it being distracting. */
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+label.check.availability { margin-top: 12px; }
+
+.badge {
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+/* ------------------------------------------------------------- offers */
+
+.offers { list-style: none; padding: 0; margin: 0; }
+
+.offer {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 10px;
+}
+/* The last third of the window. Colour, not just a number, because an agent
+   glancing at a phone should not have to read to know it is nearly gone. */
+.offer.urgent { border-color: var(--warn); background: #fffaf2; }
+.offer.resolved { opacity: 0.65; }
+.offer.resolved.won { border-color: var(--accent); background: #eef5f0; opacity: 1; }
+
+.offer-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.offer-body { margin: 6px 0; font-size: 14px; }
+
+.countdown {
+  font-variant-numeric: tabular-nums; /* stops the card twitching each tick */
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--muted);
+}
+.countdown.urgent { color: var(--warn); }
+
+.offer-actions { display: flex; gap: 8px; margin-top: 10px; }
+.offer-actions button { flex: 1; }
+
+/* ------------------------------------------------------ notifications */
+
+.notifications { list-style: none; padding: 0; margin: 0; }
+.notifications li { padding: 10px 0; border-top: 1px solid var(--line); }
+.notifications li:first-child { border-top: 0; }
+.notifications li p { margin: 2px 0 0; }
+.notifications li.unread strong { color: var(--accent-dark); }
+.notifications li.read { opacity: 0.6; }
+
+/* ---------------------------------------------------------- timeline */
+
+details summary { cursor: pointer; font-size: 13px; margin-top: 6px; }
+.timeline { list-style: none; padding: 8px 0 0 12px; margin: 0; font-size: 13px; }
+.timeline li { padding: 3px 0; border-left: 2px solid var(--line); padding-left: 10px; }
+
+.status-pill.offered { background: #fdf2e0; color: var(--warn); }
+.status-pill.unassigned { background: #fdeceb; color: var(--danger); }
