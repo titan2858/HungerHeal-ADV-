@@ -380,6 +380,43 @@ services:
         condition: service_healthy
     networks: [hungerheal]
 
+  # ------------------------------------------------ analytics-service (Phase 11)
+  # Long-term event history in Cassandra. Optional, and behind the same profile
+  # as Cassandra itself:
+  #   docker compose --profile analytics up -d
+  #
+  # Nothing else depends on it. If it is down, donations are still created,
+  # matched and collected, and its events wait in Kafka until it returns.
+  analytics-service:
+    build:
+      context: ./services/analytics-service
+    container_name: hh-analytics
+    profiles: ["analytics"]
+    restart: unless-stopped
+    ports:
+      - "4008:4008"
+    environment:
+      NODE_ENV: production
+      PORT: 4008
+      SERVICE_NAME: analytics-service
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
+      REDIS_URL: redis://redis:6379
+      CASSANDRA_HOSTS: cassandra:9042
+      CASSANDRA_DATACENTER: datacenter1
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_CLIENT_ID: analytics-service
+      KAFKA_CONSUMER_GROUP: analytics-service
+      KAFKA_ENABLED: "true"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [hungerheal]
+
 volumes:
   mongo-data:
   redis-data:
