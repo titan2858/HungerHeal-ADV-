@@ -15,19 +15,93 @@ Full specification: [docs/PLAN.md](docs/PLAN.md).
 
 ---
 
-## Quick start
+## Running it
+
+Needs Docker Desktop and Node 20+. Nothing else — Go is only needed to run the
+Go tests, not to run the services, which build inside Docker.
+
+**First time:**
 
 ```bash
-cp .env.example .env          # then fill in JWT_SECRET and OPENCAGE_API_KEY
-docker compose up -d          # Mongo, Redis, Kafka, Kafka UI
-bash scripts/create-topics.sh # create the 8 event topics
-bash scripts/verify-infra.sh  # 6 checks, all should pass
+cp .env.example .env              # works as-is; see "configuration" below
+docker compose up -d --build      # all 11 containers (infra + 7 services)
+bash scripts/create-topics.sh     # the 8 Kafka topics
+bash scripts/verify-infra.sh      # 6 checks, all should pass
 
-cd frontend && npm install && npm run dev   # http://localhost:5173
+cd frontend && npm install && npm run dev
 ```
 
-No OpenCage API key is required — geocoding falls back to a built-in offline
-geocoder, and the whole stack works end to end without one.
+Then open <http://localhost:5173>.
+
+**Every time after that:**
+
+```bash
+docker compose up -d              # ~20s to healthy
+cd frontend && npm run dev
+```
+
+The first build takes a few minutes (it compiles two Go services and installs
+five Node services). After that `up -d` is seconds.
+
+**Check everything is healthy** before using it — services report `(healthy)`
+only once they have connected to Mongo, Redis and Kafka:
+
+```bash
+docker compose ps
+```
+
+**Stop:** `docker compose down`, or `docker compose down -v` to also discard
+the data (users, donations, tracking history).
+
+### Configuration
+
+`.env.example` works unchanged. Two values are worth knowing about:
+
+- **`JWT_SECRET`** — every service verifies tokens against this, so they must
+  all share it. The committed placeholder is fine locally; generate a real one
+  with `openssl rand -hex 32` for anything else.
+- **`OPENCAGE_API_KEY`** — optional. Left empty, geocoding uses a built-in
+  offline geocoder that knows ten Bengaluru landmarks, and the whole stack
+  works end to end. Set it (free tier at <https://opencagedata.com/>) for real
+  addresses worldwide.
+
+### Trying it out
+
+**A donation is only matched if an agent is on shift within range of it.**
+That is the one thing that trips people up: with no agent on shift, a donation
+correctly ends up `UNASSIGNED` and the system is working exactly as designed.
+
+You need two sessions, because the login token lives in `localStorage` and one
+browser profile holds one session:
+
+1. **A normal window** — sign up as a **donor**.
+2. **An incognito window** — sign up as an **agent**, tick a food category, and
+   press **Go on shift**. Allow location access when the browser asks.
+3. Back in the donor window, post a donation. In the map picker use
+   **"Use my location"**, so the pickup is near where the agent's browser says
+   they are — otherwise the two are hundreds of kilometres apart and nothing
+   matches.
+4. Within a few seconds the agent window shows a **collection request with a
+   90-second countdown**. Accept it.
+5. The donor window shows *"An agent is on the way"* with the agent's phone
+   number; the agent's **To collect** list gets the pickup. Mark it collected.
+
+To watch the events behind that, open <http://localhost:8090> (Kafka UI) and
+look at `donation.created`, `donation.assigned` and `donation.accepted`. Or
+follow one donation across every service:
+
+```bash
+docker compose logs | grep <traceId>
+```
+
+If you would rather not click through it, the smoke scripts do the whole
+journey automatically against the running stack:
+
+```bash
+bash scripts/smoke-tracking.sh    # donation -> offered -> accepted -> collected
+bash scripts/smoke-donor.sh       # the donor dashboard's data
+bash scripts/smoke-lifecycle.sh   # accept races and timeouts (~4 min, waits out a real 90s window)
+```
 
 | Service | URL |
 |---|---|
