@@ -1,7 +1,13 @@
 import mongoose from 'mongoose';
 import { FOOD_CATEGORIES, VEHICLE_TYPES, DEFAULT_AGENT_RATING } from '../domain/categories.js';
 
-export const ROLES = Object.freeze(['DONOR', 'AGENT']);
+// ADMIN exists only to gate the READ-ONLY monitoring view (Phase 10).
+//
+// It grants no power over assignment. docs/PLAN.md is explicit that there is no
+// manual admin-assignment step at all, and that any monitoring view is strictly
+// read-only - it shows what the algorithm decided and why, with no controls to
+// override it. The role is a viewing permission, not an operator role.
+export const ROLES = Object.freeze(['DONOR', 'AGENT', 'ADMIN']);
 
 // What an agent can physically carry. Declared once at registration and later
 // mirrored into Redis by agent-location-service (Phase 4), because

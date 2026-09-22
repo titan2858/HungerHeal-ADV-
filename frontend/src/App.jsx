@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Login from './components/Login';
 import AgentDashboard from './components/AgentDashboard';
 import DonorDashboard from './components/DonorDashboard';
+import MonitoringView from './components/MonitoringView';
 import { auth } from './api/client';
 import './App.css';
 
@@ -42,7 +43,9 @@ export default function App() {
         </button>
       </header>
 
-      {user.role === 'AGENT' ? <AgentDashboard user={user} /> : <DonorDashboard />}
+      {user.role === 'AGENT' && <AgentDashboard user={user} />}
+      {user.role === 'DONOR' && <DonorDashboard />}
+      {user.role === 'ADMIN' && <MonitoringView />}
     </div>
   );
 }

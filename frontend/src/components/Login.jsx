@@ -93,7 +93,7 @@ export default function Login({ onAuthenticated }) {
         {mode === 'signup' && (
           <>
             <div className="role-toggle">
-              {['DONOR', 'AGENT'].map((r) => (
+              {['DONOR', 'AGENT', 'ADMIN'].map((r) => (
                 <label key={r} className={role === r ? 'selected' : ''}>
                   <input
                     type="radio"
@@ -101,7 +101,10 @@ export default function Login({ onAuthenticated }) {
                     checked={role === r}
                     onChange={() => setRole(r)}
                   />
-                  {r === 'DONOR' ? 'I donate food' : 'I collect food'}
+                  {r === 'DONOR' && 'I donate food'}
+                  {r === 'AGENT' && 'I collect food'}
+                  {/* Read-only. It grants no control over assignment. */}
+                  {r === 'ADMIN' && 'Monitor'}
                 </label>
               ))}
             </div>

@@ -48,6 +48,11 @@ const capabilities = z.object({
 export const signupSchema = z.discriminatedUnion('role', [
   z.object({ role: z.literal('DONOR'), ...identityFields }).strict(),
   z.object({ role: z.literal('AGENT'), ...identityFields, capabilities }).strict(),
+  // Self-registration for ADMIN is a local-development convenience so the
+  // monitoring view can be opened without seeding a user by hand. A real
+  // deployment would provision these accounts rather than letting anyone claim
+  // one - noted here rather than left as an accident waiting to be found.
+  z.object({ role: z.literal('ADMIN'), ...identityFields }).strict(),
 ]);
 
 export const loginSchema = z

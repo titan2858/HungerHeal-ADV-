@@ -399,3 +399,73 @@ button.link:hover { color: var(--ink); background: none; }
   .impact-value { font-size: 28px; }
   .stat-grid { gap: 14px; }
 }
+
+/* ------------------------------------------------------- monitoring view */
+
+.monitoring-list .row-button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.monitoring-list .row-button:hover { background: none; }
+.monitoring-list .row-button:hover strong { color: var(--accent-dark); }
+
+.detail {
+  margin-top: 14px;
+  padding: 14px;
+  background: #fafbf9;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.detail h3 { margin: 0 0 10px; }
+.detail h3 + * + h3 { margin-top: 18px; }
+
+.scoring { display: flex; flex-direction: column; gap: 12px; }
+
+.scored-agent {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+/* The agent the algorithm actually chose. */
+.scored-agent.winner { border-color: var(--accent); background: #f6faf7; }
+
+.scored-head { display: flex; justify-content: space-between; align-items: baseline; }
+.scored-total { font-variant-numeric: tabular-nums; font-weight: 700; }
+
+.score-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+.score-table td { padding: 3px 0; vertical-align: middle; }
+.term-name { width: 100px; color: var(--muted); }
+.term-bar { width: 45%; padding-right: 10px !important; }
+.term-raw, .term-weight, .term-weighted {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  padding-left: 10px !important;
+}
+.term-weighted { font-weight: 600; }
+
+/* The bar shows the RAW 0-1 term, so how well the agent did on each factor is
+   visible independently of how much that factor is weighted. */
+.bar-track {
+  display: block;
+  height: 6px;
+  background: var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.bar-fill { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+
+.score-inputs { margin: 8px 0 0; }
+.trace code { font-size: 12px; background: #eef0ec; padding: 1px 5px; border-radius: 4px; }
+
+@media (max-width: 560px) {
+  .term-bar { display: none; }
+  .term-name { width: auto; }
+}

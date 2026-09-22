@@ -92,6 +92,13 @@ export const api = {
     request(`/api/tracking/${donationId}/collected`, { method: 'POST' }),
   trackingSummary: () => request('/api/tracking/stats/summary'),
 
+  // ------------------------------------------------- monitoring (admin)
+  // Read-only by design: there is no assign or reassign call here, because
+  // there is no such endpoint. See docs/10-phase10-monitoring.md.
+  monitoringStats: () => request('/api/monitoring/stats'),
+  monitoringDonations: (params = '') => request(`/api/monitoring/donations${params}`),
+  monitoringDonation: (id) => request(`/api/monitoring/donations/${id}`),
+
   // -------------------------------------------------------- notifications
   notifications: (params = '') => request(`/api/notify${params}`),
   unreadCount: () => request('/api/notify/unread-count'),

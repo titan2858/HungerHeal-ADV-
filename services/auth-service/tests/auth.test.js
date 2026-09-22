@@ -168,7 +168,25 @@ describe('POST /auth/signup', () => {
   });
 
   test('rejects an unknown role', async () => {
-    await request(app).post('/auth/signup').send(donorPayload({ role: 'ADMIN' })).expect(400);
+    await request(app).post('/auth/signup').send(donorPayload({ role: 'WAREHOUSE' })).expect(400);
+  });
+
+  test('registers an admin, who needs no capabilities', async () => {
+    // ADMIN gates the read-only monitoring view and nothing else. It grants no
+    // power over assignment - there is no manual admin step in this system.
+    const res = await request(app)
+      .post('/auth/signup')
+      .send(donorPayload({ role: 'ADMIN' }))
+      .expect(201);
+
+    assert.equal(res.body.user.role, 'ADMIN');
+  });
+
+  test('rejects an admin that sends agent capabilities', async () => {
+    await request(app)
+      .post('/auth/signup')
+      .send(donorPayload({ role: 'ADMIN', capabilities: { vehicleType: 'CAR' } }))
+      .expect(400);
   });
 
   test('rejects a duplicate email with 409', async () => {

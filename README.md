@@ -184,6 +184,7 @@ docs/
   07-phase7-*.md       the status state machine, timelines and notifications
   08-phase8-*.md       the agent UI: shift, the offer countdown, and the race
   09-phase9-*.md       the donor dashboard: impact figures and what they count
+  10-phase10-*.md      the monitoring view, and why it has no assign button
 scripts/
   create-topics.sh     create the 8 Kafka topics (idempotent)
   verify-infra.sh      prove Mongo/Redis/Kafka are actually usable
@@ -196,6 +197,7 @@ scripts/
   smoke-tracking.sh    the whole journey: offered -> accepted -> collected, and who was told
   smoke-frontend.sh    the agent's day, driven through the Vite dev server's proxy
   smoke-donor.sh       the donor dashboard's data: impact, filters, timelines
+  smoke-monitoring.sh  score breakdowns, and that no write route exists
 services/              one directory per microservice
 frontend/              React (Vite) donor + agent UI
 ```
@@ -216,8 +218,8 @@ frontend/              React (Vite) donor + agent UI
 | 7 | `tracking-service` + `notification-service` | **done** |
 | 8 | Agent React UI — shift, live location, offer countdown, accept/collect | **done** |
 | 9 | Donor React UI — dashboards, history, stats | |
-| 10 | Read-only monitoring view with score breakdowns *(optional)* | next |
-| 11 | `analytics-service` + Cassandra *(optional)* | |
+| 10 | Read-only monitoring view with score breakdowns | **done** |
+| 11 | `analytics-service` + Cassandra *(optional)* | next |
 | 12 | `api-gateway` + full containerization | |
 
 ---

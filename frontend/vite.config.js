@@ -49,6 +49,12 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api\/tracking/, '/tracking'),
       },
+      // Phase 10: the read-only monitoring view.
+      '/api/monitoring': {
+        target: 'http://localhost:4006',
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/api\/monitoring/, '/monitoring'),
+      },
       // Phase 7: the notification inbox.
       '/api/notify': {
         target: 'http://localhost:4007',

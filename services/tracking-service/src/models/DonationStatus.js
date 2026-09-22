@@ -29,6 +29,23 @@ const timelineEntrySchema = new mongoose.Schema(
   { _id: false },
 );
 
+// One agent's score for one donation, exactly as assignment-engine computed it.
+//
+// Stored rather than recomputed, because recomputing it later would read agent
+// state that has since changed - their load, their position, even their rating.
+// The only honest record of WHY an agent was chosen is the one captured at the
+// moment of the decision.
+const scoredOfferSchema = new mongoose.Schema(
+  {
+    agentId: { type: String, required: true },
+    agentName: { type: String, default: null },
+    rank: { type: Number, required: true },
+    score: { type: Number, required: true },
+    breakdown: { type: mongoose.Schema.Types.Mixed, default: {} },
+  },
+  { _id: false },
+);
+
 const donationStatusSchema = new mongoose.Schema(
   {
     // Not _id: keeping the donation's own id as a plain indexed field makes it
@@ -77,6 +94,16 @@ const donationStatusSchema = new mongoose.Schema(
 
     lastEventAt: { type: Date, default: null },
     lastReason: { type: String, default: null },
+
+    // --- the monitoring view's raw material (Phase 10) ---
+    // The most recent round of offers with their full score breakdowns, plus
+    // how the search that produced them went.
+    lastOffers: { type: [scoredOfferSchema], default: [] },
+    searchRadiusKm: { type: Number, default: null },
+    candidatesFound: { type: Number, default: null },
+    candidatesEligible: { type: Number, default: null },
+    urgency: { type: String, default: null },
+    responseTimeoutSeconds: { type: Number, default: null },
 
     timeline: { type: [timelineEntrySchema], default: [] },
 

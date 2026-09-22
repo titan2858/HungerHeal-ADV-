@@ -137,6 +137,22 @@ export function buildHandlers() {
         record.offerRounds = Math.max(record.offerRounds, round);
         record.agentsOffered = (event.offers ?? []).length;
         if (!record.firstOfferedAt) record.firstOfferedAt = new Date();
+
+        // Captured for the read-only monitoring view. The breakdown travels on
+        // the event precisely so nobody has to reconstruct a decision from
+        // state that has moved on since it was made.
+        record.lastOffers = (event.offers ?? []).map((o) => ({
+          agentId: o.agentId,
+          agentName: o.agentName ?? null,
+          rank: o.rank,
+          score: o.score,
+          breakdown: o.breakdown ?? {},
+        }));
+        record.searchRadiusKm = event.searchRadiusKm ?? record.searchRadiusKm;
+        record.candidatesFound = event.candidatesFound ?? record.candidatesFound;
+        record.candidatesEligible = event.candidatesEligible ?? record.candidatesEligible;
+        record.urgency = event.urgency ?? record.urgency;
+        record.responseTimeoutSeconds = event.responseTimeoutSeconds ?? record.responseTimeoutSeconds;
         await record.save();
       }
       return record;

@@ -5,6 +5,7 @@ import mongoose from 'mongoose';
 import { requestContext } from './middleware/requestContext.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { trackingRouter } from './routes/tracking.routes.js';
+import { monitoringRouter } from './routes/monitoring.routes.js';
 import { isRedisReady } from './config/redis.js';
 import { isKafkaConnected } from './events/consumer.js';
 import { env } from './config/env.js';
@@ -38,6 +39,8 @@ export function createApp() {
   });
 
   app.use('/tracking', trackingRouter);
+  // Read-only. See routes/monitoring.routes.js for why there are no writes.
+  app.use('/monitoring', monitoringRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
