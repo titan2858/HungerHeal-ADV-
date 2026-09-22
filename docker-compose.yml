@@ -314,6 +314,72 @@ services:
         condition: service_healthy
     networks: [hungerheal]
 
+  # ------------------------------------------------- tracking-service (Phase 7)
+  # The single owner of a donation's status. Consumes every donation event and
+  # maintains the status plus a full timeline of what happened and when.
+  tracking-service:
+    build:
+      context: ./services/tracking-service
+    container_name: hh-tracking
+    restart: unless-stopped
+    ports:
+      - "4006:4006"
+    environment:
+      NODE_ENV: production
+      PORT: 4006
+      SERVICE_NAME: tracking-service
+      MONGO_URI: mongodb://${MONGO_ROOT_USER:-hungerheal}:${MONGO_ROOT_PASSWORD:-hungerheal_dev_pw}@mongo:27017/?authSource=admin
+      MONGO_DB_NAME: hh_tracking
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_CLIENT_ID: tracking-service
+      # Its own consumer group: it receives every event rather than splitting
+      # them with assignment-engine.
+      KAFKA_CONSUMER_GROUP: tracking-service
+      KAFKA_ENABLED: "true"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks: [hungerheal]
+
+  # --------------------------------------------- notification-service (Phase 7)
+  # Turns events into notifications for donors and agents. It publishes
+  # nothing, which is why adding it required no change to any existing service.
+  notification-service:
+    build:
+      context: ./services/notification-service
+    container_name: hh-notifications
+    restart: unless-stopped
+    ports:
+      - "4007:4007"
+    environment:
+      NODE_ENV: production
+      PORT: 4007
+      SERVICE_NAME: notification-service
+      MONGO_URI: mongodb://${MONGO_ROOT_USER:-hungerheal}:${MONGO_ROOT_PASSWORD:-hungerheal_dev_pw}@mongo:27017/?authSource=admin
+      MONGO_DB_NAME: hh_notifications
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_CLIENT_ID: notification-service
+      KAFKA_CONSUMER_GROUP: notification-service
+      KAFKA_ENABLED: "true"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks: [hungerheal]
+
 volumes:
   mongo-data:
   redis-data:
