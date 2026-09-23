@@ -417,6 +417,61 @@ services:
         condition: service_healthy
     networks: [hungerheal]
 
+  # ----------------------------------------------------- api-gateway (Phase 12)
+  # The single entry point. The frontend talks only to this, and it verifies
+  # the JWT once at the edge before routing to the right service.
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+    container_name: hh-gateway
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      SERVICE_NAME: api-gateway
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
+      # Service names on the compose network, not localhost.
+      AUTH_SERVICE_URL: http://auth-service:4001
+      DONATION_SERVICE_URL: http://donation-service:4002
+      GEOCODING_SERVICE_URL: http://geocoding-service:4003
+      LOCATION_SERVICE_URL: http://agent-location-service:4004
+      ENGINE_SERVICE_URL: http://assignment-engine:4005
+      TRACKING_SERVICE_URL: http://tracking-service:4006
+      NOTIFICATION_SERVICE_URL: http://notification-service:4007
+      # May not be running - it is behind the analytics profile. The gateway
+      # returns 502 for that route rather than failing to start.
+      ANALYTICS_SERVICE_URL: http://analytics-service:4008
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-300}
+      AUTH_RATE_LIMIT_MAX: ${AUTH_RATE_LIMIT_MAX:-20}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      donation-service:
+        condition: service_healthy
+      tracking-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+    networks: [hungerheal]
+
+  # -------------------------------------------------------- frontend (Phase 12)
+  # Built to static files and served by nginx, which also proxies /api to the
+  # gateway - so the browser only ever talks to one origin.
+  frontend:
+    build:
+      context: ./frontend
+    container_name: hh-frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    networks: [hungerheal]
+
 volumes:
   mongo-data:
   redis-data:

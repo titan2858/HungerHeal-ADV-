@@ -24,31 +24,40 @@ Go tests, not to run the services, which build inside Docker.
 
 ```bash
 cp .env.example .env              # works as-is; see "configuration" below
-docker compose up -d --build      # all 11 containers (infra + 7 services)
+docker compose up -d --build      # everything, including the frontend
 bash scripts/create-topics.sh     # the 8 Kafka topics
-bash scripts/verify-infra.sh      # 6 checks, all should pass
-
-cd frontend && npm install && npm run dev
 ```
 
-Then open <http://localhost:5173>.
+Then open <http://localhost:8080>.
+
+Since Phase 12 the frontend is a container too, so there is no separate
+`npm run dev` step. One command starts the whole system.
 
 **Every time after that:**
 
 ```bash
-docker compose up -d              # ~20s to healthy
-cd frontend && npm run dev
+docker compose up -d              # ~30s to healthy
 ```
 
-The first build takes a few minutes (it compiles two Go services and installs
-five Node services). After that `up -d` is seconds.
+The first build takes a few minutes (two Go services compile, six Node services
+install, and the frontend bundle is built). After that `up -d` is seconds.
 
-**Check everything is healthy** before using it — services report `(healthy)`
-only once they have connected to Mongo, Redis and Kafka:
+**Working on the frontend?** The Vite dev server is still there for hot reload,
+and proxies to the same services:
 
 ```bash
-docker compose ps
+cd frontend && npm run dev        # http://localhost:5173
 ```
+
+**Check everything is healthy** before using it. One call answers for the whole
+system:
+
+```bash
+curl http://localhost:4000/ready
+```
+
+or `docker compose ps` for the container view — services report `(healthy)`
+only once they have connected to Mongo, Redis and Kafka.
 
 **Stop:** `docker compose down`, or `docker compose down -v` to also discard
 the data (users, donations, tracking history).
@@ -113,7 +122,9 @@ bash scripts/smoke-lifecycle.sh   # accept races and timeouts (~4 min, waits out
 | tracking-service | <http://localhost:4006> |
 | notification-service | <http://localhost:4007> |
 | analytics-service *(profile)* | <http://localhost:4008> |
-| frontend (Vite dev) | <http://localhost:5173> |
+| **frontend** | **<http://localhost:8080>** |
+| **api-gateway** | **<http://localhost:4000>** |
+| frontend (Vite dev, optional) | <http://localhost:5173> |
 | Kafka UI | <http://localhost:8090> |
 | MongoDB | `localhost:27018` (27017 is taken by the local mongod) |
 | Redis | `localhost:6379` |
@@ -187,6 +198,7 @@ docs/
   09-phase9-*.md       the donor dashboard: impact figures and what they count
   10-phase10-*.md      the monitoring view, and why it has no assign button
   11-phase11-*.md      Cassandra data modelling, and the event log as a migration
+  12-phase12-*.md      the gateway, and the browser knowing one address
 scripts/
   create-topics.sh     create the 8 Kafka topics (idempotent)
   verify-infra.sh      prove Mongo/Redis/Kafka are actually usable
@@ -201,6 +213,7 @@ scripts/
   smoke-donor.sh       the donor dashboard's data: impact, filters, timelines
   smoke-monitoring.sh  score breakdowns, and that no write route exists
   smoke-analytics.sh   Cassandra tables, time-to-assignment, and catch-up after downtime
+  smoke-gateway.sh     the whole journey through one port, and the gateway's own concerns
 services/              one directory per microservice
 frontend/              React (Vite) donor + agent UI
 ```
@@ -223,7 +236,7 @@ frontend/              React (Vite) donor + agent UI
 | 9 | Donor React UI — dashboards, history, stats | |
 | 10 | Read-only monitoring view with score breakdowns | **done** |
 | 11 | `analytics-service` + Cassandra *(optional)* | **done** |
-| 12 | `api-gateway` + full containerization | next |
+| 12 | `api-gateway` + full containerization | **done** |
 
 ---
 
