@@ -43,6 +43,18 @@ const (
 	loadFmt   = "agent:%s:load"
 	aliveFmt  = "agent:%s:alive"
 	trueValue = "1"
+
+	// The field that marks a caps hash as a COMPLETE mirror of auth-service,
+	// rather than a stub some other write happened to create.
+	//
+	// This matters because HSET creates the hash if it is missing, so any
+	// single-field write - SetAvailability, for one - brings the key into
+	// existence. Testing EXISTS would then report "capabilities are on record"
+	// for a hash holding nothing but `available`, and the agent would be
+	// filtered out of every donation for having no categories. Only
+	// SaveCapabilities writes this field, so only SaveCapabilities can satisfy
+	// the check.
+	capsCompleteField = "updatedAt"
 )
 
 func CapsKey(agentID string) string  { return fmt.Sprintf(capsFmt, agentID) }
@@ -107,10 +119,22 @@ func (s *Store) SaveCapabilities(ctx context.Context, agentID string, a domain.A
 		"refrigerated": boolToStr(a.Capabilities.HasRefrigeration),
 		// Stored as a delimited string rather than a nested structure: Redis
 		// hash values are flat strings, and the list is short and read whole.
-		"categories": strings.Join(a.Capabilities.CategoriesHandled, ","),
-		"rating":     strconv.FormatFloat(a.Rating, 'f', 2, 64),
-		"available":  boolToStr(a.Available),
-		"updatedAt":  time.Now().UTC().Format(time.RFC3339),
+		"categories":      strings.Join(a.Capabilities.CategoriesHandled, ","),
+		"rating":          strconv.FormatFloat(a.Rating, 'f', 2, 64),
+		capsCompleteField: time.Now().UTC().Format(time.RFC3339),
+	}
+
+	// `available` is live shift state, not registration data, so it is only
+	// seeded when nothing has set it yet. Writing it unconditionally would let
+	// a mirror silently flip an agent back to "accepting work" after they had
+	// just turned it off - auth-service defaults it to true and has no idea
+	// what the agent chose thirty seconds ago.
+	existing, err := s.rdb.HGet(ctx, CapsKey(agentID), "available").Result()
+	if err != nil && err != redis.Nil {
+		return err
+	}
+	if err == redis.Nil || existing == "" {
+		fields["available"] = boolToStr(a.Available)
 	}
 
 	// No TTL: capabilities are not presence. An agent who goes offline for a
@@ -119,9 +143,30 @@ func (s *Store) SaveCapabilities(ctx context.Context, agentID string, a domain.A
 	return s.rdb.HSet(ctx, CapsKey(agentID), fields).Err()
 }
 
+// HasCapabilities reports whether a COMPLETE capability mirror is on record.
+//
+// Deliberately not EXISTS on the key: see capsCompleteField. A hash created by
+// some other single-field write is not a mirror, and treating it as one leaves
+// the agent with no categories and therefore ineligible for every donation.
 func (s *Store) HasCapabilities(ctx context.Context, agentID string) (bool, error) {
-	n, err := s.rdb.Exists(ctx, CapsKey(agentID)).Result()
-	return n > 0, err
+	return s.rdb.HExists(ctx, CapsKey(agentID), capsCompleteField).Result()
+}
+
+// SavePartialProfile records what is known about an agent when auth-service
+// could not be reached - name and phone from their token, and nothing about
+// what they can carry.
+//
+// It deliberately omits capsCompleteField, so HasCapabilities keeps returning
+// false and the next request retries the mirror. Writing the sentinel here
+// would make a record with no categories look finished, and the agent would be
+// hard-filtered out of every donation for as long as the key survived - which
+// is precisely the bug this field exists to prevent.
+func (s *Store) SavePartialProfile(ctx context.Context, agentID string, a domain.Agent) error {
+	return s.rdb.HSet(ctx, CapsKey(agentID), map[string]any{
+		"name":   a.Name,
+		"phone":  a.Phone,
+		"rating": strconv.FormatFloat(a.Rating, 'f', 2, 64),
+	}).Err()
 }
 
 // SetAvailability flips whether the agent is accepting work, without discarding

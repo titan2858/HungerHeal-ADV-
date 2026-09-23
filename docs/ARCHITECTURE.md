@@ -242,10 +242,22 @@ The split is deliberate:
 | **An idempotency check passed vacuously** | A broken replay command meant it tested nothing |
 | Gateway stripped its own prefix | `app.use(prefix)` strips it; the rewrite matched nothing |
 | A duplicate JSON log key | Log processors may drop or reorder duplicates |
+| **An agent invisible to matching** | A stub hash satisfied the "already mirrored" check, so the agent had no categories and was hard-filtered from every donation |
 
 The fifth one is worth dwelling on: the test *reported success for behaviour it
 never exercised*, which is worse than no test. It now asserts the replay itself
 succeeded before drawing any conclusion.
+
+### The bug the tests did NOT catch
+
+The last row was found **by using the app**, with every test passing. Two
+endpoints wrote the same Redis hash, and every test set an agent up in the same
+order — location first — so nothing ever exercised the other order, which was
+the one that broke. The suite had encoded the happy path's *sequencing* as
+though it were the only sequencing.
+
+Where two callers write one key, the tests have to cover **both orders**. Full
+write-up in [13](13-bugfix-capability-mirror.md).
 
 ---
 
@@ -292,3 +304,4 @@ Each phase has its own document with the reasoning at the time:
 | [10](10-phase10-monitoring.md) | **Why the monitoring view has no assign button** |
 | [11](11-phase11-analytics-cassandra.md) | Cassandra modelling |
 | [12](12-phase12-gateway-and-containers.md) | The gateway |
+| [13](13-bugfix-capability-mirror.md) | **A bug every test missed** — two writers, one key, no owner |

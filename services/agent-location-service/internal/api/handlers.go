@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"math"
@@ -53,6 +54,64 @@ func (h *Handlers) Ready(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ------------------------------------------------------- capability mirror
+
+// ensureCapabilities makes sure a COMPLETE capability record exists in Redis
+// before anything else touches this agent's state.
+//
+// Called from every endpoint that can be an agent's first contact, not just
+// the location report. Ordering used to matter and must not: the UI shows the
+// availability toggle as soon as a shift starts, which is before the browser
+// has produced a GPS fix, so `POST /agents/availability` can genuinely arrive
+// first. When it did, its HSET created the caps hash, the location report
+// concluded capabilities were already on record, and the mirror never ran -
+// leaving an agent with no categories, which the matching engine treats as a
+// hard exclusion from every donation however close they are.
+func (h *Handlers) ensureCapabilities(ctx context.Context, r *http.Request, user httpx.User) error {
+	log := logging.FromContext(ctx, h.Logger)
+
+	known, err := h.Store.HasCapabilities(ctx, user.ID)
+	if err != nil {
+		return err
+	}
+	if known {
+		return nil
+	}
+
+	agent, err := h.Auth.FetchAgent(ctx, r.Header.Get("Authorization"), logging.TraceFrom(ctx))
+	if err != nil {
+		// Falls back to what the token already carries rather than rejecting
+		// the request. An agent's position is time-sensitive, and dropping it
+		// because auth-service was briefly slow would take a working agent out
+		// of matching entirely.
+		//
+		// Saved WITHOUT the completeness sentinel, so the next request tries
+		// again. The token carries no categories, and a record that claimed to
+		// be a finished mirror while holding none would leave the agent
+		// hard-filtered out of every donation until something deleted the key.
+		log.Warn("could not fetch capabilities, storing minimal profile", "err", err.Error())
+		partial := domain.Agent{
+			AgentID: user.ID,
+			Name:    user.Name,
+			Phone:   user.Phone,
+			Rating:  3.5,
+		}
+		if err := h.Store.SavePartialProfile(ctx, user.ID, partial); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	if err := h.Store.SaveCapabilities(ctx, user.ID, *agent); err != nil {
+		return err
+	}
+
+	log.Info("agent capabilities mirrored into redis",
+		"agentId", user.ID,
+		"categories", agent.Capabilities.CategoriesHandled)
+	return nil
+}
+
 // -------------------------------------------------------------- location
 
 type locationRequest struct {
@@ -90,39 +149,12 @@ func (h *Handlers) UpdateLocation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// First report from this agent: mirror their capabilities from
+	// First contact from this agent: mirror their capabilities from
 	// auth-service so the matching hot path can read everything from Redis.
-	known, err := h.Store.HasCapabilities(ctx, user.ID)
-	if err != nil {
-		log.Error("redis unavailable", "err", err.Error())
+	if err := h.ensureCapabilities(ctx, r, user); err != nil {
+		log.Error("could not mirror capabilities", "err", err.Error())
 		httpx.Internal(w, r)
 		return
-	}
-
-	if !known {
-		agent, err := h.Auth.FetchAgent(ctx, r.Header.Get("Authorization"), logging.TraceFrom(ctx))
-		if err != nil {
-			// Falls back to what the token already carries rather than
-			// rejecting the report. An agent's position is time-sensitive, and
-			// dropping it because auth-service was briefly slow would take a
-			// working agent out of matching entirely.
-			log.Warn("could not fetch capabilities, storing minimal profile", "err", err.Error())
-			agent = &domain.Agent{
-				AgentID:   user.ID,
-				Name:      user.Name,
-				Phone:     user.Phone,
-				Rating:    3.5,
-				Available: true,
-			}
-		}
-		if err := h.Store.SaveCapabilities(ctx, user.ID, *agent); err != nil {
-			log.Error("could not save capabilities", "err", err.Error())
-			httpx.Internal(w, r)
-			return
-		}
-		log.Info("agent capabilities mirrored into redis",
-			"agentId", user.ID,
-			"categories", agent.Capabilities.CategoriesHandled)
 	}
 
 	if err := h.Store.UpsertLocation(ctx, user.ID, *req.Lat, *req.Lng); err != nil {
@@ -172,6 +204,16 @@ func (h *Handlers) SetAvailability(w http.ResponseWriter, r *http.Request) {
 	var req availabilityRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Available == nil {
 		httpx.BadRequest(w, r, "body must be JSON with an `available` boolean")
+		return
+	}
+
+	// Before the toggle, not after. This can be an agent's first contact - the
+	// shift panel offers the toggle while the browser is still acquiring a GPS
+	// fix - and SetAvailability's HSET would otherwise create a caps hash that
+	// looked like a record but carried no categories.
+	if err := h.ensureCapabilities(ctx, r, user); err != nil {
+		logging.FromContext(ctx, h.Logger).Error("could not mirror capabilities", "err", err.Error())
+		httpx.Internal(w, r)
 		return
 	}
 

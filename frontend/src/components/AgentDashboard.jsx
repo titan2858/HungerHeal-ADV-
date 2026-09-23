@@ -25,7 +25,7 @@ import { prettyCategory, timeAgo } from '../lib/format';
  * them, collect the food.
  */
 export default function AgentDashboard() {
-  const { sharing, position, lastReportedAt, error: locationError, start, stop } =
+  const { sharing, acquiring, position, lastReportedAt, error: locationError, start, stop } =
     useAgentLocation();
 
   // Offers are only polled while on shift. Polling every five seconds for an
@@ -102,14 +102,21 @@ export default function AgentDashboard() {
             <span
               className={[
                 'flex size-11 items-center justify-center rounded-xl',
-                sharing ? 'bg-leaf-600 text-white' : 'bg-cream-200 text-ink-400',
+                sharing
+                  ? 'bg-leaf-600 text-white'
+                  : acquiring
+                    ? 'bg-warm-100 text-warm-600'
+                    : 'bg-cream-200 text-ink-400',
               ].join(' ')}
             >
-              <Satellite className="size-5" aria-hidden="true" />
+              <Satellite
+                className={`size-5 ${acquiring ? 'animate-pulse' : ''}`}
+                aria-hidden="true"
+              />
             </span>
             <div>
               <h2 className="flex items-center gap-2 text-xl font-semibold">
-                {sharing ? 'On shift' : 'Off shift'}
+                {sharing ? 'On shift' : acquiring ? 'Finding your location…' : 'Off shift'}
                 {sharing && (
                   <span className="relative flex size-2.5">
                     <span className="absolute inline-flex size-full animate-ping rounded-full bg-leaf-400 opacity-75" />
@@ -120,14 +127,19 @@ export default function AgentDashboard() {
               <p className="mt-0.5 text-sm text-ink-500">
                 {sharing
                   ? 'You are on the map and can be matched.'
-                  : 'Nothing will be offered to you until you go on shift.'}
+                  : acquiring
+                    ? 'Waiting for your first GPS fix. Your shift starts the moment it arrives.'
+                    : 'Nothing will be offered to you until you go on shift.'}
               </p>
             </div>
           </div>
 
-          <Button variant={sharing ? 'outline' : 'primary'} onClick={sharing ? stop : start}>
+          <Button
+            variant={sharing || acquiring ? 'outline' : 'primary'}
+            onClick={sharing || acquiring ? stop : start}
+          >
             <Power className="size-4" aria-hidden="true" />
-            {sharing ? 'End shift' : 'Go on shift'}
+            {sharing ? 'End shift' : acquiring ? 'Cancel' : 'Go on shift'}
           </Button>
         </div>
 

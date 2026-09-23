@@ -19,6 +19,12 @@ const REPORT_INTERVAL_MS = 20_000;
  */
 export function useAgentLocation() {
   const [sharing, setSharing] = useState(false);
+  // True from the tap until the first GPS fix arrives. watchPosition is async
+  // and enableHighAccuracy can take several seconds, so there is a real window
+  // where a shift has been requested but the server has heard nothing at all.
+  // Reporting that window as "on shift" was actively misleading - the panel
+  // claimed the agent was matchable while they were invisible to the engine.
+  const [acquiring, setAcquiring] = useState(false);
   const [position, setPosition] = useState(null);
   const [lastReportedAt, setLastReportedAt] = useState(null);
   const [error, setError] = useState(null);
@@ -52,6 +58,7 @@ export function useAgentLocation() {
     }
 
     setError(null);
+    setAcquiring(true);
 
     watchId.current = navigator.geolocation.watchPosition(
       (pos) => {
@@ -62,6 +69,11 @@ export function useAgentLocation() {
         };
         latest.current = next;
         setPosition(next);
+        // The shift starts here, not at the tap. Until a position exists there
+        // is nothing to report, so nothing downstream should behave as though
+        // the agent were live.
+        setAcquiring(false);
+        setSharing(true);
       },
       (err) => {
         setError(
@@ -69,14 +81,13 @@ export function useAgentLocation() {
             ? 'Location permission denied. Agents cannot be matched without it.'
             : `Location unavailable: ${err.message}`,
         );
+        setAcquiring(false);
         setSharing(false);
       },
       // enableHighAccuracy because a pickup is a doorway, not a neighbourhood,
       // and distance is 35% of whether this agent wins the donation.
       { enableHighAccuracy: true, maximumAge: 10_000, timeout: 15_000 },
     );
-
-    setSharing(true);
   }, []);
 
   const stop = useCallback(async () => {
@@ -89,6 +100,8 @@ export function useAgentLocation() {
       timerId.current = null;
     }
     setSharing(false);
+    setAcquiring(false);
+    latest.current = null;
 
     try {
       // Explicitly offline rather than waiting for the heartbeat to lapse.
@@ -125,5 +138,5 @@ export function useAgentLocation() {
     [],
   );
 
-  return { sharing, position, lastReportedAt, error, start, stop, reportNow: report };
+  return { sharing, acquiring, position, lastReportedAt, error, start, stop, reportNow: report };
 }

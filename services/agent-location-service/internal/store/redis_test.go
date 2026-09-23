@@ -421,3 +421,158 @@ func TestMovingAgentUpdatesPositionRatherThanDuplicating(t *testing.T) {
 		t.Errorf("agent should be found at their NEW position, got %d", len(agents))
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Regression: an agent who toggled availability before their first location
+// report was silently excluded from every donation.
+//
+// SetAvailability's HSET creates the caps hash, so a HasCapabilities built on
+// EXISTS reported "already mirrored" for a hash holding nothing but
+// `available`. The mirror then never ran, the agent had no categories, and the
+// engine's hard category filter dropped them at any distance. Found in the
+// running system: an agent with all five categories on record in auth-service
+// was refused donations 300m away.
+// ---------------------------------------------------------------------------
+
+func TestSetAvailabilityDoesNotFakeACapabilityRecord(t *testing.T) {
+	st := testStore(t)
+	ctx := context.Background()
+	const id = "test-order"
+
+	if err := st.SetAvailability(ctx, id, true); err != nil {
+		t.Fatalf("SetAvailability: %v", err)
+	}
+
+	// The key now exists, but nothing has mirrored capabilities into it. The
+	// caller must still be told to fetch them.
+	known, err := st.HasCapabilities(ctx, id)
+	if err != nil {
+		t.Fatalf("HasCapabilities: %v", err)
+	}
+	if known {
+		t.Fatal("HasCapabilities reported a complete record after only SetAvailability; " +
+			"the capability mirror would be skipped and the agent left with no categories")
+	}
+
+	if err := st.SaveCapabilities(ctx, id, sampleAgent(id)); err != nil {
+		t.Fatalf("SaveCapabilities: %v", err)
+	}
+	known, err = st.HasCapabilities(ctx, id)
+	if err != nil {
+		t.Fatalf("HasCapabilities after save: %v", err)
+	}
+	if !known {
+		t.Fatal("HasCapabilities did not recognise a genuinely complete record")
+	}
+}
+
+func TestAgentIsMatchableWhenAvailabilityPrecedesFirstLocation(t *testing.T) {
+	st := testStore(t)
+	ctx := context.Background()
+	const id = "test-order-e2e"
+
+	// The exact order the UI produces: the shift panel offers the availability
+	// toggle while the browser is still acquiring a GPS fix.
+	if err := st.SetAvailability(ctx, id, true); err != nil {
+		t.Fatalf("SetAvailability: %v", err)
+	}
+
+	if known, _ := st.HasCapabilities(ctx, id); !known {
+		if err := st.SaveCapabilities(ctx, id, sampleAgent(id, "COOKED_PREPARED")); err != nil {
+			t.Fatalf("SaveCapabilities: %v", err)
+		}
+	}
+	if err := st.UpsertLocation(ctx, id, mgRoadLat, mgRoadLng); err != nil {
+		t.Fatalf("UpsertLocation: %v", err)
+	}
+
+	found, err := st.Nearby(ctx, NearbyOptions{
+		Lat: churchStLat, Lng: churchStLng, RadiusKm: 5, Limit: 10,
+	})
+	if err != nil {
+		t.Fatalf("Nearby: %v", err)
+	}
+
+	var seen *domain.NearbyAgent
+	for i := range found {
+		if found[i].AgentID == id {
+			seen = &found[i]
+			break
+		}
+	}
+	if seen == nil {
+		t.Fatal("agent not returned by Nearby at 380m")
+	}
+	if !seen.Capabilities.Handles("COOKED_PREPARED") {
+		t.Fatalf("agent came back with categories %v; the engine's hard category "+
+			"filter would exclude them from every donation",
+			seen.Capabilities.CategoriesHandled)
+	}
+}
+
+func TestMirroringDoesNotResurrectAvailability(t *testing.T) {
+	st := testStore(t)
+	ctx := context.Background()
+	const id = "test-avail-keep"
+
+	// The agent says "stop sending me work", and only then does the mirror run.
+	if err := st.SetAvailability(ctx, id, false); err != nil {
+		t.Fatalf("SetAvailability: %v", err)
+	}
+
+	// sampleAgent is Available: true, as auth-service's default would be.
+	if err := st.SaveCapabilities(ctx, id, sampleAgent(id)); err != nil {
+		t.Fatalf("SaveCapabilities: %v", err)
+	}
+
+	agent, err := st.GetAgent(ctx, id)
+	if err != nil {
+		t.Fatalf("GetAgent: %v", err)
+	}
+	if agent.Available {
+		t.Fatal("mirroring flipped the agent back to available; " +
+			"registration data must not overwrite live shift state")
+	}
+}
+
+// A degraded write must not look like a finished one. When auth-service is
+// unreachable the service stores name and phone from the token, which says
+// nothing about what the agent can carry - so the mirror has to remain
+// pending, or the agent is hard-filtered out of every donation until something
+// deletes the key.
+func TestPartialProfileStaysRetryable(t *testing.T) {
+	st := testStore(t)
+	ctx := context.Background()
+	const id = "test-partial"
+
+	if err := st.SavePartialProfile(ctx, id, domain.Agent{
+		AgentID: id, Name: "Token Only", Phone: "+91 9000000001", Rating: 3.5,
+	}); err != nil {
+		t.Fatalf("SavePartialProfile: %v", err)
+	}
+
+	known, err := st.HasCapabilities(ctx, id)
+	if err != nil {
+		t.Fatalf("HasCapabilities: %v", err)
+	}
+	if known {
+		t.Fatal("a partial profile reported itself as a complete mirror; " +
+			"the retry would never happen and the agent would carry no categories")
+	}
+
+	// Once auth-service recovers, the real mirror completes it.
+	if err := st.SaveCapabilities(ctx, id, sampleAgent(id, "BAKERY")); err != nil {
+		t.Fatalf("SaveCapabilities: %v", err)
+	}
+	if known, _ := st.HasCapabilities(ctx, id); !known {
+		t.Fatal("the completed mirror was still not recognised")
+	}
+
+	agent, err := st.GetAgent(ctx, id)
+	if err != nil {
+		t.Fatalf("GetAgent: %v", err)
+	}
+	if !agent.Capabilities.Handles("BAKERY") {
+		t.Fatalf("categories missing after recovery: %v", agent.Capabilities.CategoriesHandled)
+	}
+}
