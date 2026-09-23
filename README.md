@@ -11,7 +11,10 @@ distance, food-category/transport compatibility, current workload and rating,
 then notifies the top candidates in parallel and reassigns automatically on
 timeout.
 
-Full specification: [docs/PLAN.md](docs/PLAN.md).
+**Start here:** [docs/DEMO.md](docs/DEMO.md) — a 10-minute walkthrough ·
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — the decisions and their tradeoffs
+
+Original specification: [docs/PLAN.md](docs/PLAN.md).
 
 ---
 
@@ -139,31 +142,29 @@ the data volumes.
 ## Architecture
 
 ```
-                     ┌──────────────┐
-                     │   frontend   │  React + Vite
-                     └──────┬───────┘
-                            │ JWT verified once
-                     ┌──────┴───────┐
-                     │ api-gateway  │
-                     └──────┬───────┘
-        ┌──────────────┬────┴─────┬───────────────┐
-        ▼              ▼          ▼               ▼
-   auth-service  donation-svc  geocoding   agent-location (Go)
-     (Mongo)       (Mongo)     (Redis $)     (Redis GEO)
-                      │                           │
-                      │ donation.created          │ live location
-                      ▼                           ▼
-                 ┌─────────────────────────────────────┐
-                 │   assignment-engine  (Go)           │
-                 │   GEOSEARCH -> score -> top 3       │
-                 └──────┬──────────────────────┬───────┘
-                        │ donation.assigned    │ donation.unassigned
-              ┌─────────┴────────┐             ▼
-              ▼                  ▼        donor informed
-      notification-service  tracking-service
-        (alerts agents)    (status + timeout timers)
-                                 │ donation.timeout
-                                 └──────► back to assignment-engine
+                    ┌──────────────┐
+   browser ────────▶│   frontend   │  nginx :8080
+                    └──────┬───────┘
+                           │ /api  (one origin - no CORS, no service ports)
+                    ┌──────▼───────┐
+                    │ api-gateway  │  :4000 - JWT verified once at the edge
+                    └──────┬───────┘
+      ┌──────────┬─────────┼──────────┬───────────┬────────────┐
+      ▼          ▼         ▼          ▼           ▼            ▼
+    auth     donation   geocoding  agent-loc   tracking    notification
+   (Mongo)    (Mongo)   (Redis $)  (Redis GEO)  (Mongo)      (Mongo)
+                 │                     │           ▲             ▲
+                 │ donation.created    │           │             │
+                 ▼                     │           │             │
+         ┌───────────────────────────┐ │           │             │
+         │    assignment-engine (Go) │◀┘           │             │
+         │  GEOSEARCH → score → top3 │             │             │
+         └───────┬───────────────────┘             │             │
+                 │ donation.assigned / .accepted / .unassigned   │
+                 └──────────────────────────────────┴────────────┘
+                                   │
+                                   ▼
+                        analytics (Cassandra, optional)
 ```
 
 Everything between services flows over **Kafka**; no service calls another
@@ -221,6 +222,10 @@ frontend/              React (Vite) donor + agent UI
 ---
 
 ## Build progress
+
+All 12 phases complete. **242 unit tests, 333 smoke checks, 13 suites, all
+passing.**
+
 
 | Phase | Scope | Status |
 |---|---|---|
