@@ -10,7 +10,11 @@
 set -uo pipefail
 export MSYS_NO_PATHCONV=1
 
-WEB="${WEB_BASE_URL:-http://localhost:5173}"
+# Defaults to the CONTAINERIZED frontend on :8080, which nginx serves and
+# which proxies /api to the gateway. Before Phase 12 this was the Vite dev
+# server on :5173 - still a valid target for this script while working on
+# the frontend, via WEB_BASE_URL=http://localhost:5173.
+WEB="${WEB_BASE_URL:-http://localhost:8080}"
 STAMP=$(date +%s)
 pass=0; fail=0
 ok()  { echo "  [PASS] $1"; pass=$((pass+1)); }

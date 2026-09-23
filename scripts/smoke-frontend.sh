@@ -10,7 +10,11 @@
 set -uo pipefail
 export MSYS_NO_PATHCONV=1
 
-WEB="${WEB_BASE_URL:-http://localhost:5173}"
+# Defaults to the CONTAINERIZED frontend on :8080, which nginx serves and
+# which proxies /api to the gateway. Before Phase 12 this was the Vite dev
+# server on :5173 - still a valid target for this script while working on
+# the frontend, via WEB_BASE_URL=http://localhost:5173.
+WEB="${WEB_BASE_URL:-http://localhost:8080}"
 STAMP=$(date +%s)
 pass=0; fail=0
 ok()  { echo "  [PASS] $1"; pass=$((pass+1)); }
@@ -49,14 +53,17 @@ code=$(curl -s -o "$BODY" -w '%{http_code}' -X POST "$WEB/api/auth/login"   -H '
 code=$(curl -s -o "$BODY" -w '%{http_code}' "$WEB/api/donations")
 [ "$code" = "401" ] && ok "/api/donations -> donation-service (401 from the service)" || bad "/api/donations got $code"
 
-for route in "geo/health:4003" "location/health:4004" "engine/health:4005"; do
-  path="${route%%:*}"; port="${route##*:}"
-  code=$(curl -s -o "$BODY" -w '%{http_code}' "$WEB/api/$path")
-  if [ "$code" = "200" ]; then
-    ok "/api/$path -> :$port"
-  else
-    bad "/api/$path got $code"
-  fi
+for path in "geo" "location" "engine"; do
+  code=$(curl -s -o "$BODY" -w '%{http_code}' "$WEB/api/$path/health")
+  # 401 from the gateway, not 200 from the service.
+  #
+  # Since Phase 12 these routes are authenticated AT THE EDGE, so even a
+  # service's /health is not reachable anonymously through the front door -
+  # the gateway has no idea which downstream paths are meant to be public.
+  # That is the safer default, and the gateway has its own aggregate /ready
+  # for the "is it up?" question. Reaching the gateway at all is what this
+  # check is for: a 404 would mean nginx never forwarded the request.
+  [ "$code" = "401" ] && ok "/api/$path reaches the gateway (401 at the edge)" || bad "/api/$path got $code"
 done
 
 # tracking and notify rewrite onto their resource paths, so an anonymous
