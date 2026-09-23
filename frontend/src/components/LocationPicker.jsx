@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
+import { Crosshair, Loader2, MapPin, Search } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { api } from '../api/client';
@@ -94,7 +95,7 @@ export default function LocationPicker({ value, onChange }) {
       });
       setStatus(
         res.cached
-          ? 'Found (served from cache - no API call made)'
+          ? 'Found (served from cache — no API call made)'
           : 'Found',
       );
     } catch (err) {
@@ -156,27 +157,66 @@ export default function LocationPicker({ value, onChange }) {
     );
   }
 
+  const precise = meta?.confidence != null && meta.confidence >= 7;
+
   return (
-    <div className="picker">
-      <form className="picker-search" onSubmit={searchAddress}>
-        <input
-          type="text"
-          value={address}
-          placeholder="Pickup address, e.g. 12 MG Road, Bengaluru"
-          onChange={(e) => setAddress(e.target.value)}
-        />
-        <button type="submit" disabled={busy || address.trim().length < 3}>
-          {busy ? 'Looking…' : 'Find'}
-        </button>
-        <button type="button" className="secondary" onClick={useMyLocation} disabled={busy}>
-          Use my location
-        </button>
-      </form>
+    <div className="space-y-3">
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <div className="relative flex-1">
+          <Search
+            className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-400"
+            aria-hidden="true"
+          />
+          <input
+            type="text"
+            value={address}
+            aria-label="Pickup address"
+            placeholder="Pickup address, e.g. 12 MG Road, Bengaluru"
+            onChange={(e) => setAddress(e.target.value)}
+            onKeyDown={(e) => {
+              // A nested <form> is invalid inside the donation form, so Enter
+              // is wired up by hand rather than by form submission.
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                searchAddress();
+              }
+            }}
+            className="w-full rounded-xl border border-cream-300 bg-white py-2.5 pl-10 pr-4 text-sm transition-colors placeholder:text-ink-400 focus:border-leaf-500"
+          />
+        </div>
 
-      <p className="hint">Click the map or drag the pin to set the exact pickup point.</p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={searchAddress}
+            disabled={busy || address.trim().length < 3}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-leaf-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-leaf-700 disabled:bg-leaf-300"
+          >
+            {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
+            Find
+          </button>
+          <button
+            type="button"
+            onClick={useMyLocation}
+            disabled={busy}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-leaf-300 bg-white px-4 py-2.5 text-sm font-semibold text-leaf-700 transition-colors hover:bg-leaf-50 disabled:text-leaf-300"
+          >
+            <Crosshair className="size-4" aria-hidden="true" />
+            Use my location
+          </button>
+        </div>
+      </div>
 
-      <div className="map-wrap">
-        <MapContainer center={position ?? DEFAULT_CENTER} zoom={13} className="map">
+      <p className="text-xs text-ink-400">
+        Click the map or drag the pin to set the exact pickup point.
+      </p>
+
+      <div className="overflow-hidden rounded-xl2 border border-cream-200">
+        <MapContainer
+          center={position ?? DEFAULT_CENTER}
+          zoom={13}
+          className="h-72 w-full sm:h-80"
+        >
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -198,23 +238,28 @@ export default function LocationPicker({ value, onChange }) {
         </MapContainer>
       </div>
 
-      {status && <p className="status">{status}</p>}
+      {status && <p className="text-xs text-ink-500">{status}</p>}
 
       {position && (
-        <p className="coords">
-          <strong>Selected:</strong> {position[0].toFixed(5)}, {position[1].toFixed(5)}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl bg-leaf-50 px-4 py-3 text-xs">
+          <MapPin className="size-4 text-leaf-600" aria-hidden="true" />
+          <span className="font-semibold text-ink-700">Selected:</span>
+          <span className="font-mono text-ink-600">
+            {position[0].toFixed(5)}, {position[1].toFixed(5)}
+          </span>
+
+          {/* Surfaced because a vague address resolves to the middle of a long
+              road, and an agent sent to the wrong end wastes a trip on food
+              that may not keep. */}
           {meta?.confidence != null && (
-            // Surfaced because a vague address resolves to the middle of a long
-            // road, and an agent sent to the wrong end wastes a trip on food
-            // that may not keep.
-            <span className={meta.confidence >= 7 ? 'ok' : 'warn'}>
-              {meta.confidence >= 7
-                ? ' · precise match'
-                : ' · rough match, please check the pin'}
+            <span
+              className={`font-semibold ${precise ? 'text-leaf-700' : 'text-warm-700'}`}
+            >
+              · {precise ? 'precise match' : 'rough match, please check the pin'}
             </span>
           )}
-          {meta?.cached && <span className="muted"> · cached</span>}
-        </p>
+          {meta?.cached && <span className="text-ink-400">· cached</span>}
+        </div>
       )}
     </div>
   );

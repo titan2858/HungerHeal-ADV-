@@ -1,51 +1,85 @@
-import { useState } from 'react';
-import Login from './components/Login';
-import AgentDashboard from './components/AgentDashboard';
-import DonorDashboard from './components/DonorDashboard';
-import MonitoringView from './components/MonitoringView';
-import { auth } from './api/client';
-import './App.css';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { ToastProvider } from './context/ToastContext';
+import Layout from './components/layout/Layout';
 
-export default function App() {
-  const [user, setUser] = useState(auth.user);
+import Home from './pages/Home';
+import About from './pages/About';
+import Mission from './pages/Mission';
+import HowItWorks from './pages/HowItWorks';
+import Partners from './pages/Partners';
+import Contact from './pages/Contact';
+import Login from './pages/Login';
+import Signup from './pages/Signup';
+import Donate from './pages/Donate';
+import Dashboard from './pages/Dashboard';
+import Monitoring from './pages/Monitoring';
+import NotFound from './pages/NotFound';
 
-  if (!user) {
-    return (
-      <div className="shell">
-        <header>
-          <div>
-            <h1>HungerHeal</h1>
-            <p className="tagline">Surplus food, matched to a collection agent automatically.</p>
-          </div>
-        </header>
-        <Login onAuthenticated={setUser} />
-      </div>
-    );
+// Remembers where you were going, so logging in returns you there instead of
+// dumping you on a generic dashboard.
+function RequireAuth({ roles, children }) {
+  const { user, isAuthenticated } = useAuth();
+  const location = useLocation();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
-  return (
-    <div className="shell">
-      <header>
-        <div>
-          <h1>HungerHeal</h1>
-          <p className="tagline">
-            {user.name} · {user.role.toLowerCase()}
-          </p>
-        </div>
-        <button
-          className="secondary"
-          onClick={() => {
-            auth.clear();
-            setUser(null);
-          }}
-        >
-          Log out
-        </button>
-      </header>
+  // A role that cannot use this page is sent to one it can, not shown an error.
+  if (roles && !roles.includes(user.role)) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
-      {user.role === 'AGENT' && <AgentDashboard user={user} />}
-      {user.role === 'DONOR' && <DonorDashboard />}
-      {user.role === 'ADMIN' && <MonitoringView />}
-    </div>
+  return children;
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <ToastProvider>
+          <Routes>
+            <Route element={<Layout />}>
+              <Route index element={<Home />} />
+              <Route path="about" element={<About />} />
+              <Route path="mission" element={<Mission />} />
+              <Route path="how-it-works" element={<HowItWorks />} />
+              <Route path="partners" element={<Partners />} />
+              <Route path="contact" element={<Contact />} />
+              <Route path="login" element={<Login />} />
+              <Route path="signup" element={<Signup />} />
+
+              <Route
+                path="donate"
+                element={
+                  <RequireAuth roles={['DONOR']}>
+                    <Donate />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="dashboard"
+                element={
+                  <RequireAuth>
+                    <Dashboard />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="monitoring"
+                element={
+                  <RequireAuth roles={['ADMIN']}>
+                    <Monitoring />
+                  </RequireAuth>
+                }
+              />
+
+              <Route path="*" element={<NotFound />} />
+            </Route>
+          </Routes>
+        </ToastProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }

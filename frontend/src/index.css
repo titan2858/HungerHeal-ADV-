@@ -1,2 +1,117 @@
-/* App.css owns the styling; this file exists only to keep Vite's default
-   template from fighting it. */
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   HungerHeal design system
+   ---------------------------------------------------------------------------
+   Green carries sustainability and growth; warm amber carries food and
+   welcome; cream keeps it human rather than clinical. Deliberately few hues -
+   a charity site loses trust when it looks like a carnival.
+--------------------------------------------------------------------------- */
+
+@theme {
+  /* Primary: deep, calm green. Trust and growth. */
+  --color-leaf-50:  #f1f8f3;
+  --color-leaf-100: #ddeee2;
+  --color-leaf-200: #bcdcc7;
+  --color-leaf-300: #8ec2a2;
+  --color-leaf-400: #5ba278;
+  --color-leaf-500: #3a855a;
+  --color-leaf-600: #2a6a46;
+  --color-leaf-700: #225539;
+  --color-leaf-800: #1d442f;
+  --color-leaf-900: #183828;
+
+  /* Secondary: warm amber. Food, warmth, appetite. */
+  --color-warm-50:  #fdf6ec;
+  --color-warm-100: #fae9cf;
+  --color-warm-200: #f4d29f;
+  --color-warm-300: #ecb566;
+  --color-warm-400: #e39a3c;
+  --color-warm-500: #d07f21;
+  --color-warm-600: #b06318;
+  --color-warm-700: #8c4a16;
+  --color-warm-800: #723c18;
+  --color-warm-900: #5f3317;
+
+  /* Cream ground - softer than white, still clean. */
+  --color-cream-50:  #fdfbf7;
+  --color-cream-100: #f8f4ec;
+  --color-cream-200: #f0e9dc;
+  --color-cream-300: #e3d8c4;
+
+  /* Neutral ink. Warm-tinted grey reads friendlier than pure grey. */
+  --color-ink-400: #8a8579;
+  --color-ink-500: #6b6659;
+  --color-ink-600: #4d4941;
+  --color-ink-700: #35322c;
+  --color-ink-900: #1c1a17;
+
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, sans-serif;
+
+  /* Softer, larger radii than the default scale - warmth, not sharpness. */
+  --radius-xl2: 1.25rem;
+  --radius-xl3: 1.75rem;
+
+  /* Shadows tinted with the brand green rather than pure black, so cards sit
+     on the cream ground instead of floating above a grey one. */
+  --shadow-soft: 0 1px 2px rgb(24 56 40 / 0.04), 0 8px 24px -8px rgb(24 56 40 / 0.10);
+  --shadow-lift: 0 2px 4px rgb(24 56 40 / 0.05), 0 18px 40px -12px rgb(24 56 40 / 0.18);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Respect people who have asked for less motion. Every Framer Motion
+     animation in the app is decorative, so switching them off costs nothing. */
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  body {
+    background-color: var(--color-cream-50);
+    color: var(--color-ink-700);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    color: var(--color-ink-900);
+    letter-spacing: -0.02em;
+  }
+
+  /* A visible, on-brand focus ring everywhere. Keyboard users should never
+     have to guess where they are. */
+  :focus-visible {
+    outline: 2px solid var(--color-leaf-500);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+@layer components {
+  /* Used for hero and section eyebrow labels. */
+  .eyebrow {
+    @apply inline-flex items-center gap-2 rounded-full bg-leaf-100 px-3 py-1
+           text-xs font-semibold uppercase tracking-wider text-leaf-700;
+  }
+
+  /* The skeleton shimmer for loading states. */
+  .skeleton {
+    @apply animate-pulse rounded-lg bg-cream-200;
+  }
+}
+
+/* Leaflet's default marker shadow clashes with the cream ground. */
+.leaflet-container {
+  font-family: var(--font-sans);
+}

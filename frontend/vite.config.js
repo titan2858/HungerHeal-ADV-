@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
 // The browser talks to ONE origin (the dev server) and Vite forwards to each
 // service. Without this the app would call three different ports directly,
@@ -7,7 +8,7 @@ import react from '@vitejs/plugin-react';
 // in sync. In production api-gateway (Phase 12) plays exactly this role, so
 // the frontend's view of the world does not change when it is introduced.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   server: {
     port: 5173,
     proxy: {
