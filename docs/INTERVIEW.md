@@ -4,6 +4,12 @@ Prep material for talking about this project. Answers are **what is actually
 true of this codebase**, not generic textbook lines — an interviewer who pushes
 one level deeper should find the code matches.
 
+> **A PDF of this document** is at
+> [HungerHeal-Interview-Questions.pdf](HungerHeal-Interview-Questions.pdf) — 42
+> pages, one section per page break, for reading away from a screen. Regenerate
+> it after any edit with:
+> `python scripts/md2pdf.py docs/INTERVIEW.md docs/HungerHeal-Interview-Questions.pdf "HungerHeal" "Interview questions and answers"`
+
 **How to use this:** the answers are written out fully so you can check your
 understanding, but do not recite them. In the room, lead with the one-sentence
 version and let them pull the detail. Where an answer names a number or a file,
