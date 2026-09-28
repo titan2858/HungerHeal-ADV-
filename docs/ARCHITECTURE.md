@@ -3,6 +3,9 @@
 The technical companion to [DEMO.md](DEMO.md). This is the "why", with the
 tradeoffs stated rather than glossed.
 
+For interview preparation, [INTERVIEW.md](INTERVIEW.md) turns all of this into
+150 questions with answers.
+
 **The problem:** the previous version required an **admin to manually assign
 every donation to a collection agent**. A human deciding who collects what,
 based on proximity and availability. It does not scale, and it is worst exactly
