@@ -11,8 +11,11 @@ from pathlib import Path
 
 import markdown
 
-SRC = Path(sys.argv[1])
-OUT = Path(sys.argv[2])
+SRC = Path(sys.argv[1]).resolve()
+# Absolute: Chrome resolves --print-to-pdf against ITS OWN working directory,
+# not ours, so a relative path silently writes somewhere else.
+OUT = Path(sys.argv[2]).resolve()
+OUT.parent.mkdir(parents=True, exist_ok=True)
 TITLE = sys.argv[3] if len(sys.argv) > 3 else SRC.stem
 SUBTITLE = sys.argv[4] if len(sys.argv) > 4 else ""
 
@@ -23,8 +26,7 @@ text = SRC.read_text(encoding="utf-8")
 # outline, so the table stays but is rendered as plain text rather than links.
 html_body = markdown.markdown(
     text,
-    extensions=["tables", "fenced_code", "codehilite", "sane_lists", "attr_list"],
-    extension_configs={"codehilite": {"noclasses": True, "pygments_style": "friendly"}},
+    extensions=["tables", "fenced_code", "sane_lists", "attr_list"],
 )
 
 # Each "### <n>. <question>" starts a card. Wrapping every question in a block
@@ -192,12 +194,15 @@ pre {
   margin: 10px 0;
   font-size: 8.4pt;
   line-height: 1.45;
-  white-space: pre-wrap;
-  word-wrap: break-word;
+  white-space: pre;
+  overflow: hidden;
   page-break-inside: avoid;
   break-inside: avoid;
 }
-pre, code { font-family: "Consolas", "SF Mono", "Courier New", monospace; }
+pre, code {
+  font-family: Consolas, "Cascadia Mono", "Lucida Console", monospace;
+  font-variant-ligatures: none;
+}
 code {
   background: var(--code-bg);
   padding: 1px 4px;

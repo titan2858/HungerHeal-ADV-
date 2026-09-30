@@ -6,6 +6,11 @@ tradeoffs stated rather than glossed.
 For interview preparation, [INTERVIEW.md](INTERVIEW.md) turns all of this into
 150 questions with answers.
 
+For a file-by-file map of how a request moves inside each service, see
+[SERVICE-FLOWS.md](SERVICE-FLOWS.md) (and its
+[PDF](HungerHeal-Service-Flows.pdf), plus one PDF per service in
+[service-flows/](service-flows/)).
+
 **The problem:** the previous version required an **admin to manually assign
 every donation to a collection agent**. A human deciding who collects what,
 based on proximity and availability. It does not scale, and it is worst exactly
