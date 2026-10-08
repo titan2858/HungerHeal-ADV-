@@ -18,6 +18,10 @@ OUT = Path(sys.argv[2]).resolve()
 OUT.parent.mkdir(parents=True, exist_ok=True)
 TITLE = sys.argv[3] if len(sys.argv) > 3 else SRC.stem
 SUBTITLE = sys.argv[4] if len(sys.argv) > 4 else ""
+# Cover facts, one per line, separated by "|". Each document states its own -
+# a hardcoded line here once printed "150 questions" on every cover.
+STACK = "Event-driven microservices &middot; Go &middot; Kafka &middot; Redis"
+META = sys.argv[5].split("|") if len(sys.argv) > 5 and sys.argv[5] else []
 
 text = SRC.read_text(encoding="utf-8")
 
@@ -225,9 +229,7 @@ html = f"""<!doctype html>
   <h1>{TITLE}</h1>
   <p class="sub">{SUBTITLE}</p>
   <div style="text-align:center"><div class="meta">
-    <b>150</b> questions with answers<br>
-    <b>12</b> sections<br>
-    Event-driven microservices &middot; Go &middot; Kafka &middot; Redis
+    {"".join(f"{line}<br>" for line in META)}{STACK}
   </div></div>
 </div>
 {html_body}

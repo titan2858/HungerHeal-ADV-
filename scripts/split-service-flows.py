@@ -58,7 +58,7 @@ for heading, body in sections.items():
     pdf = OUT_DIR / f"{slug}.pdf"
     subprocess.run(
         [sys.executable, str(MD2PDF), str(md), str(pdf),
-         name, "Request flow, file by file"],
+         name, "Request flow, file by file", "File-by-file request flow"],
         check=True, capture_output=True, timeout=300,
     )
     md.unlink()
